@@ -181,6 +181,8 @@ class FeatureSplattingModel(SplatfactoModel):
         self.estimate_ground_btn.set_disabled(False)
         self.estimate_ground_btn.set_visible(True)
 
+
+
     def segment_positive_obj(self):
         selected_obj_idx, sample_idx = self.segment_gaussian("positive", use_canonical=False)
 
@@ -574,3 +576,42 @@ class FeatureSplattingModel(SplatfactoModel):
 
         self.camera_optimizer.get_metrics_dict(metrics_dict)
         return metrics_dict
+
+    def extract_clusters(self, field_name: str = 'positive', threshold: float = 0.5):
+        """
+        Extract clusters programmatically from the feature field.
+
+        Args:
+            field_name (str): The name of the field to segment (default: 'positive').
+            threshold (float): The similarity threshold for segmentation (default: 0.5).
+
+        Returns:
+            dict: A dictionary containing:
+                - 'clustered_points': The clustered points in 3D space.
+                - 'indices': The indices of the points that belong to the cluster.
+                - 'bounding_box': A tuple containing the min and max bounds of the cluster.
+        """
+        # Segment the Gaussian features
+        selected_obj_idx, sample_idx = self.segment_gaussian(field_name, use_canonical=False, threshold=threshold)
+
+        # Get all 3D coordinates
+        all_xyz = self.means.detach().cpu().numpy()
+        selected_xyz = all_xyz[sample_idx]
+
+        # Cluster the selected features
+        selected_obj_idx = cluster_instance(selected_xyz, selected_obj_idx)
+
+        # Get the boolean flag of selected particles
+        subset_idx = np.zeros(self.means.shape[0], dtype=bool)
+        subset_idx[sample_idx[selected_obj_idx]] = True
+
+        # Calculate the bounding box for the cluster
+        ground_min, ground_max = get_ground_bbox_min_max(all_xyz, subset_idx, self.ground_R, self.ground_T)
+
+        # Return the clustered points, indices, and bounding box
+        return {
+            'clustered_points': selected_xyz[selected_obj_idx],
+            'indices': sample_idx[selected_obj_idx],
+            'bounding_box': (ground_min, ground_max)
+        }
+
