@@ -1,21 +1,36 @@
 from feature_splatting.model import FeatureSplattingModel, FeatureSplattingModelConfig
-import tyro
-from nerfstudio.configs.method_configs import method_configs
-
+import yaml
 
 # Replace with the path to your config YAML file
 config_path = "data/nerfstudio/garden_8/garden_8/feature-splatting/2025-05-12_071531/config.yml"
 
-# Load the configuration
-config = tyro.cli(method_configs["feature-splatting"], args=["--load-config", config_path])
 
 
+# Load config YAML
+with open(config_path, "r") as f:
+    config_dict = yaml.safe_load(f)
 
-# Create an instance of FeatureSplattingModel
-model = FeatureSplattingModel(config=config)
+print("CONFIG DICT HERE:", config_dict)
 
-# Initialize the model's modules (if required)
+# Instantiate your custom config
+config = FeatureSplattingModelConfig(**config_dict["pipeline"]["_target_config"])
+
+# Initialize the model
+model = FeatureSplattingModel(config)
 model.populate_modules()
+
+
+
+# # Load the configuration
+# config = tyro.cli(method_configs["feature-splatting"], args=["--load-config", config_path])
+
+
+
+# # Create an instance of FeatureSplattingModel
+# model = FeatureSplattingModel(config=config)
+
+# # Initialize the model's modules (if required)
+# model.populate_modules()
 
 clusters = model.extract_clusters(field_name='positive', threshold=0.6)
 
