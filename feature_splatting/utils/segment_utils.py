@@ -15,7 +15,6 @@ def cluster_instance(all_xyz_n3, selected_obj_idx=None, min_sample=20, eps=0.1):
         selected_obj_idx = np.ones(all_xyz_n3.shape[0], dtype=bool)
     dbscan = DBSCAN(eps=eps, min_samples=min_sample).fit(all_xyz_n3[selected_obj_idx])
     clustered_labels = dbscan.labels_
-    print("DBSCAN labels:", clustered_labels)
 
     # Find the most populated cluster
     label_idx_list, label_count_list = np.unique(clustered_labels, return_counts=True)
@@ -29,7 +28,6 @@ def cluster_instance(all_xyz_n3, selected_obj_idx=None, min_sample=20, eps=0.1):
     arr = clustered_idx[selected_obj_idx]
     arr[clustered_labels == max_count_label] = True
     clustered_idx[selected_obj_idx] = arr
-    print("DBSCAN clustered indices:", clustered_idx)
     return clustered_idx
 
 
