@@ -1,11 +1,18 @@
-import taichi as ti
-import numpy as np
 import math
 import time
-from engine.renderer_utils import out_dir, ray_aabb_intersection, inf, eps, \
-  intersect_sphere, sphere_aabb_intersect_motion, inside_taichi
 
+import numpy as np
+import taichi as ti
 from engine.particle_io import ParticleIO
+from engine.renderer_utils import (
+    eps,
+    inf,
+    inside_taichi,
+    intersect_sphere,
+    out_dir,
+    ray_aabb_intersection,
+    sphere_aabb_intersect_motion,
+)
 
 res = 1280, 720
 aspect_ratio = res[0] / res[1]
@@ -25,13 +32,15 @@ light_color = [1.0, 1.0, 1.0]
 
 @ti.data_oriented
 class Renderer:
-    def __init__(self,
-                 dx=1 / 1024,
-                 sphere_radius=0.3 / 1024,
-                 render_voxel=False,
-                 shutter_time=1e-3,
-                 taichi_logo=True,
-                 max_num_particles_million=128):
+    def __init__(
+        self,
+        dx=1 / 1024,
+        sphere_radius=0.3 / 1024,
+        render_voxel=False,
+        shutter_time=1e-3,
+        taichi_logo=True,
+        max_num_particles_million=128,
+    ):
         self.vignette_strength = 0.9
         self.vignette_radius = 0.0
         self.vignette_center = [0.5, 0.5]
@@ -69,9 +78,7 @@ class Renderer:
 
         self.supporter = 2
         self.sphere_radius = sphere_radius
-        self.particle_grid_offset = [
-            -self.particle_grid_res // 2 for _ in range(3)
-        ]
+        self.particle_grid_offset = [-self.particle_grid_res // 2 for _ in range(3)]
 
         self.voxel_grid_res = self.particle_grid_res
         voxel_grid_offset = [-self.voxel_grid_res // 2 for _ in range(3)]
@@ -86,31 +93,20 @@ class Renderer:
         ti.root.dense(ti.ij, res).place(self.color_buffer)
 
         self.block_size = 8
-        self.block_offset = [
-            o // self.block_size for o in self.particle_grid_offset
-        ]
-        self.particle_bucket = ti.root.pointer(
-            ti.ijk, self.particle_grid_res // self.block_size)
+        self.block_offset = [o // self.block_size for o in self.particle_grid_offset]
+        self.particle_bucket = ti.root.pointer(ti.ijk, self.particle_grid_res // self.block_size)
 
         self.particle_bucket.dense(ti.ijk, self.block_size).dynamic(
-            ti.l, self.max_num_particles_per_cell,
-            chunk_size=32).place(self.pid,
-                                 offset=self.particle_grid_offset + [0])
+            ti.l, self.max_num_particles_per_cell, chunk_size=32
+        ).place(self.pid, offset=self.particle_grid_offset + [0])
 
-        self.voxel_block_offset = [
-            o // self.block_size for o in voxel_grid_offset
-        ]
-        ti.root.pointer(ti.ijk,
-                        self.particle_grid_res // self.block_size).dense(
-                            ti.ijk,
-                            self.block_size).place(self.voxel_has_particle,
-                                                   offset=voxel_grid_offset)
-        voxel_block = ti.root.pointer(ti.ijk,
-                                      self.voxel_grid_res // self.block_size)
+        self.voxel_block_offset = [o // self.block_size for o in voxel_grid_offset]
+        ti.root.pointer(ti.ijk, self.particle_grid_res // self.block_size).dense(ti.ijk, self.block_size).place(
+            self.voxel_has_particle, offset=voxel_grid_offset
+        )
+        voxel_block = ti.root.pointer(ti.ijk, self.voxel_grid_res // self.block_size)
 
-        voxel_block.dense(ti.ijk,
-                          self.block_size).place(self.voxel_grid_density,
-                                                 offset=voxel_grid_offset)
+        voxel_block.dense(ti.ijk, self.block_size).place(self.voxel_grid_density, offset=voxel_grid_offset)
 
         particle = ti.root.dense(ti.l, self.max_num_particles)
 
@@ -124,15 +120,13 @@ class Renderer:
 
     @ti.func
     def inside_grid(self, ipos):
-        return ipos.min() >= -self.voxel_grid_res // 2 and ipos.max(
-        ) < self.voxel_grid_res // 2
+        return ipos.min() >= -self.voxel_grid_res // 2 and ipos.max() < self.voxel_grid_res // 2
 
     # The dda algorithm requires the voxel grid to have one surrounding layer of void region
     # to correctly render the outmost voxel faces
     @ti.func
     def inside_grid_loose(self, ipos):
-        return ipos.min() >= -self.voxel_grid_res // 2 - 1 and ipos.max(
-        ) <= self.voxel_grid_res // 2
+        return ipos.min() >= -self.voxel_grid_res // 2 - 1 and ipos.max() <= self.voxel_grid_res // 2
 
     @ti.func
     def query_density(self, ipos):
@@ -170,8 +164,7 @@ class Renderer:
             ra = 0.29
             rb = 0.005
             d = (ti.Vector([p[0], p[2]]).norm() - 2.0 * ra + rb, abs(p[1]) - h)
-            dist = min(max(d[0], d[1]), 0.0) + ti.Vector(
-                [max(d[0], 0.0), max(d[1], 0)]).norm() - rb
+            dist = min(max(d[0], d[1]), 0.0) + ti.Vector([max(d[0], 0.0), max(d[1], 0)]).norm() - rb
         elif ti.static(self.supporter == 1):
             o -= ti.Vector([0.5, 0.002, 0.5])
             dist = (o.abs() - ti.Vector([0.5, 0.02, 0.5])).max()
@@ -185,8 +178,7 @@ class Renderer:
         j = 0
         dist = 0.0
         limit = 200
-        while j < limit and self.sdf(p +
-                                     dist * d) > 1e-8 and dist < dist_limit:
+        while j < limit and self.sdf(p + dist * d) > 1e-8 and dist < dist_limit:
             dist += self.sdf(p + dist * d)
             j += 1
         if dist > dist_limit:
@@ -232,8 +224,7 @@ class Renderer:
 
         bbox_min = self.bbox[0]
         bbox_max = self.bbox[1]
-        inter, near, far = ray_aabb_intersection(bbox_min, bbox_max, eye_pos,
-                                                 d)
+        inter, near, far = ray_aabb_intersection(bbox_min, bbox_max, eye_pos, d)
         hit_distance = inf
         normal = ti.Vector([0.0, 0.0, 0.0])
         c = ti.Vector([0.0, 0.0, 0.0])
@@ -254,8 +245,7 @@ class Renderer:
                     running = 0
 
                 if last_sample:
-                    mini = (ipos - o + ti.Vector([0.5, 0.5, 0.5]) -
-                            rsign * 0.5) * rinv
+                    mini = (ipos - o + ti.Vector([0.5, 0.5, 0.5]) - rsign * 0.5) * rinv
                     hit_distance = mini.max() * self.voxel_dx + near
                     hit_pos = eye_pos + hit_distance * d
                     c = self.voxel_color(hit_pos)
@@ -277,9 +267,14 @@ class Renderer:
     @ti.func
     def inside_particle_grid(self, ipos):
         pos = ipos * self.dx
-        return self.bbox[0][0] <= pos[0] and pos[0] < self.bbox[1][
-            0] and self.bbox[0][1] <= pos[1] and pos[1] < self.bbox[1][
-                1] and self.bbox[0][2] <= pos[2] and pos[2] < self.bbox[1][2]
+        return (
+            self.bbox[0][0] <= pos[0]
+            and pos[0] < self.bbox[1][0]
+            and self.bbox[0][1] <= pos[1]
+            and pos[1] < self.bbox[1][1]
+            and self.bbox[0][2] <= pos[2]
+            and pos[2] < self.bbox[1][2]
+        )
 
     # DDA for the particle visualization (render_voxels=False)
     @ti.func
@@ -295,8 +290,7 @@ class Renderer:
             if abs(d[i]) < 1e-6:
                 d[i] = 1e-6
 
-        inter, near, far = ray_aabb_intersection(bbox_min, bbox_max, eye_pos,
-                                                 d)
+        inter, near, far = ray_aabb_intersection(bbox_min, bbox_max, eye_pos, d)
         near = max(0, near)
 
         closest_intersection = inf
@@ -324,20 +318,16 @@ class Renderer:
                     # once we actually intersect with a voxel that contains at least one particle, loop over the particle list
                     num_particles = self.voxel_has_particle[ipos]
                     if num_particles != 0:
-                        num_particles = ti.length(
-                            self.pid.parent(),
-                            ipos - ti.Vector(self.particle_grid_offset))
+                        num_particles = ti.length(self.pid.parent(), ipos - ti.Vector(self.particle_grid_offset))
                     for k in range(num_particles):
                         p = self.pid[ipos, k]
                         v = ti.Vector([0.0, 0.0, 0.0])
                         if ti.static(self.enable_motion_blur):
                             v = self.particle_v[p]
                         x = self.particle_x[p] + t * v
-                        color = ti.cast(self.particle_color[p],
-                                        ti.u32) * (1 / 255.0)
+                        color = ti.cast(self.particle_color[p], ti.u32) * (1 / 255.0)
                         # ray-sphere intersection
-                        dist, poss = intersect_sphere(eye_pos, d, x,
-                                                      self.sphere_radius)
+                        dist, poss = intersect_sphere(eye_pos, d, x, self.sphere_radius)
                         hit_pos = poss
                         if dist < closest_intersection and dist > 0:
                             hit_pos = eye_pos + dist * d
@@ -412,8 +402,7 @@ class Renderer:
             fov = self.fov[None]
             pos = self.camera_pos[None]
             d = (self.look_at[None] - self.camera_pos[None]).normalized()
-            fu = (2 * fov * (u + ti.random(ti.f32)) / res[1] -
-                  fov * aspect_ratio - 1e-5)
+            fu = 2 * fov * (u + ti.random(ti.f32)) / res[1] - fov * aspect_ratio - 1e-5
             fv = 2 * fov * (v + ti.random(ti.f32)) / res[1] - fov - 1e-5
             du = d.cross(self.up[None]).normalized()
             dv = du.cross(d).normalized()
@@ -438,19 +427,15 @@ class Renderer:
                     throughput *= c
 
                     if ti.static(use_directional_light):
-                        dir_noise = ti.Vector([
-                            ti.random() - 0.5,
-                            ti.random() - 0.5,
-                            ti.random() - 0.5
-                        ]) * light_direction_noise
-                        direct = (ti.Vector(light_direction) +
-                                  dir_noise).normalized()
+                        dir_noise = (
+                            ti.Vector([ti.random() - 0.5, ti.random() - 0.5, ti.random() - 0.5]) * light_direction_noise
+                        )
+                        direct = (ti.Vector(light_direction) + dir_noise).normalized()
                         dot = direct.dot(normal)
                         if dot > 0:
                             dist, _, _ = self.next_hit(pos, direct, t)
                             if dist > dist_limit:
-                                contrib += throughput * ti.Vector(
-                                    light_color) * dot
+                                contrib += throughput * ti.Vector(light_color) * dot
                 else:  # hit sky
                     hit_sky = 1
                     depth = max_ray_depth
@@ -495,8 +480,7 @@ class Renderer:
                     offset_end_grid[k] = offset_begin_grid[k]
                     offset_begin_grid[k] = t
 
-            offset_begin_grid = int(ti.floor(
-                offset_begin_grid * self.inv_dx)) - 1
+            offset_begin_grid = int(ti.floor(offset_begin_grid * self.inv_dx)) - 1
             offset_end_grid = int(ti.ceil(offset_end_grid * self.inv_dx)) + 2
 
             for i in range(offset_begin_grid[0], offset_end_grid[0]):
@@ -506,16 +490,13 @@ class Renderer:
                         box_ipos = ipos + offset
                         if self.inside_particle_grid(box_ipos):
                             box_min = box_ipos * self.dx
-                            box_max = (box_ipos +
-                                       ti.Vector([1, 1, 1])) * self.dx
+                            box_max = (box_ipos + ti.Vector([1, 1, 1])) * self.dx
                             if sphere_aabb_intersect_motion(
-                                    box_min, box_max, x + offset_begin,
-                                    x + offset_end, self.sphere_radius):
+                                box_min, box_max, x + offset_begin, x + offset_end, self.sphere_radius
+                            ):
                                 self.voxel_has_particle[box_ipos] = 1
                                 self.voxel_grid_density[box_ipos] = 1
-                                ti.append(
-                                    self.pid.parent(), box_ipos -
-                                    ti.Vector(self.particle_grid_offset), p)
+                                ti.append(self.pid.parent(), box_ipos - ti.Vector(self.particle_grid_offset), p)
 
     @ti.kernel
     def copy(self, img: ti.types.ndarray(), samples: ti.i32):
@@ -523,17 +504,21 @@ class Renderer:
             u = 1.0 * i / res[0]
             v = 1.0 * j / res[1]
 
-            darken = 1.0 - self.vignette_strength * max((ti.sqrt(
-                (u - self.vignette_center[0])**2 +
-                (v - self.vignette_center[1])**2) - self.vignette_radius), 0)
+            darken = 1.0 - self.vignette_strength * max(
+                (
+                    ti.sqrt((u - self.vignette_center[0]) ** 2 + (v - self.vignette_center[1]) ** 2)
+                    - self.vignette_radius
+                ),
+                0,
+            )
 
             for c in ti.static(range(3)):
-                img[i, j, c] = ti.sqrt(self.color_buffer[i, j][c] * darken *
-                                       exposure / samples)
+                img[i, j, c] = ti.sqrt(self.color_buffer[i, j][c] * darken * exposure / samples)
 
     @ti.kernel
-    def initialize_particle(self, x: ti.types.ndarray(), v: ti.types.ndarray(),
-                            color: ti.types.ndarray(), begin: ti.i32, end: ti.i32):
+    def initialize_particle(
+        self, x: ti.types.ndarray(), v: ti.types.ndarray(), color: ti.types.ndarray(), begin: ti.i32, end: ti.i32
+    ):
         for i in range(begin, end):
             for c in ti.static(range(3)):
                 self.particle_x[i][c] = x[i - begin, c]
@@ -557,9 +542,7 @@ class Renderer:
 
         for I in ti.grouped(self.voxel_has_particle):
             if self.voxel_has_particle[I]:
-                num_particles = ti.length(
-                    self.pid.parent(),
-                    I - ti.Vector(self.particle_grid_offset))
+                num_particles = ti.length(self.pid.parent(), I - ti.Vector(self.particle_grid_offset))
                 counter += num_particles
 
         return counter
@@ -581,24 +564,21 @@ class Renderer:
         for i in range(3):
             # bbox values must be multiples of self.dx
             # bbox values are the min and max particle coordinates, with 3 self.dx margin
-            self.bbox[0][i] = (math.floor(np_x[:, i].min() * self.inv_dx) -
-                               3.0) * self.dx
-            self.bbox[1][i] = (math.floor(np_x[:, i].max() * self.inv_dx) +
-                               3.0) * self.dx
-            print(f'Bounding box dim {i}: {self.bbox[0][i]} {self.bbox[1][i]}')
+            self.bbox[0][i] = (math.floor(np_x[:, i].min() * self.inv_dx) - 3.0) * self.dx
+            self.bbox[1][i] = (math.floor(np_x[:, i].max() * self.inv_dx) + 3.0) * self.dx
+            print(f"Bounding box dim {i}: {self.bbox[0][i]} {self.bbox[1][i]}")
 
         # TODO: assert bounds
 
         self.num_particles[None] = num_part
-        print('num_input_particles =', num_part)
+        print("num_input_particles =", num_part)
 
         slice_size = 1000000
         num_slices = (num_part + slice_size - 1) // slice_size
         for i in range(num_slices):
             begin = slice_size * i
             end = min(num_part, begin + slice_size)
-            self.initialize_particle(np_x[begin:end], np_v[begin:end],
-                                     np_color[begin:end], begin, end)
+            self.initialize_particle(np_x[begin:end], np_v[begin:end], np_color[begin:end], begin, end)
         self.initialize_particle_grid()
 
     def render_frame(self, spp):
@@ -610,8 +590,7 @@ class Renderer:
             if i % interval == 0:
                 if last_t != 0:
                     ti.sync()
-                    print("time per spp = {:.2f} ms".format(
-                        (time.time() - last_t) * 1000 / interval))
+                    print("time per spp = {:.2f} ms".format((time.time() - last_t) * 1000 / interval))
                 last_t = time.time()
 
         img = np.zeros((res[0], res[1], 3), dtype=np.float32)

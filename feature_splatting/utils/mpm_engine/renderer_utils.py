@@ -1,5 +1,6 @@
-import taichi as ti
 import math
+
+import taichi as ti
 
 eps = 1e-4
 inf = 1e10
@@ -140,8 +141,7 @@ def sphere_aabb_intersect_motion(box_min, box_max, o1, o2, radius):
         else:
             lo = m1
 
-    return point_aabb_distance2(box_min, box_max,
-                                (1 - lo) * o1 + lo * o2) < radius * radius
+    return point_aabb_distance2(box_min, box_max, (1 - lo) * o1 + lo * o2) < radius * radius
 
 
 @ti.func

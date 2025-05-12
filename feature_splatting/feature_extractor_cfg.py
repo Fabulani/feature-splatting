@@ -6,10 +6,10 @@ class SAMCLIPArgs:
     part_feat_res: int = 300
     final_feat_res: int = 64
     dino_resolution: int = 800
-    dinov2_model_name: str = 'dinov2_vits14'
-    mobilesamv2_encoder_name: str = 'mobilesamv2_efficientvit_l2'
-    clip_model_name: str = 'ViT-L/14@336px'
-    
+    dinov2_model_name: str = "dinov2_vits14"
+    mobilesamv2_encoder_name: str = "mobilesamv2_efficientvit_l2"
+    clip_model_name: str = "ViT-L/14@336px"
+
     @classmethod
     def id_dict(cls):
         """Return dict that identifies the CLIP model parameters."""

@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def point_to_plane_distance(point, plane):
     """
     Compute distance from point to plane
@@ -9,10 +10,11 @@ def point_to_plane_distance(point, plane):
     """
     x, y, z = point
     A, B, C, D = plane
-    numerator = np.abs(A*x + B*y + C*z + D)
+    numerator = np.abs(A * x + B * y + C * z + D)
     denominator = np.sqrt(A**2 + B**2 + C**2)
     distance = numerator / denominator
     return distance
+
 
 def vector_angle(vec_a, vec_b):
     """

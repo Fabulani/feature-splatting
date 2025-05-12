@@ -1,16 +1,15 @@
-from dataclasses import dataclass, field
-from functools import cached_property
-from typing import Dict, List, Literal, Optional, Tuple, Type, Union
-from torchtyping import TensorType
-from nerfstudio.utils.rich_utils import CONSOLE
+from typing import Optional, Tuple
 
 import torch
+from nerfstudio.utils.rich_utils import CONSOLE
+from torchtyping import TensorType
+
 
 class ViewerUtils:
-    def __init__(self, text_encoding_func, softmax_temp: float = 0.05, canonical_words: str = 'object'):
+    def __init__(self, text_encoding_func, softmax_temp: float = 0.05, canonical_words: str = "object"):
         self.text_encoding_func = text_encoding_func
         self.text_embedding_dict = {}
-        self.update_text_embedding('canonical', canonical_words)
+        self.update_text_embedding("canonical", canonical_words)
         self.softmax_temp = softmax_temp
         self.pca_proj = None
 
@@ -27,10 +26,10 @@ class ViewerUtils:
 
     def is_embed_valid(self, name_key: str) -> bool:
         return name_key in self.text_embedding_dict and self.text_embedding_dict[name_key][1] is not None
-    
+
     def get_text_embed(self, name_key: str) -> Optional[torch.Tensor]:
         return self.text_embedding_dict[name_key][1]
-    
+
     def get_embed_shape(self, name_key: str) -> Optional[Tuple[int]]:
         embed = self.get_text_embed(name_key)
         if embed is not None:
@@ -43,6 +42,7 @@ class ViewerUtils:
     def reset_pca_proj(self):
         self.pca_proj = None
         CONSOLE.print("Reset PCA projection")
+
 
 def apply_pca_colormap_return_proj(
     image: TensorType["bs":..., "d"],

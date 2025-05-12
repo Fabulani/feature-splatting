@@ -1,21 +1,19 @@
 import gc
 from dataclasses import dataclass, field
 from typing import Dict, Literal, Tuple, Type
-from nerfstudio.cameras.cameras import Cameras, CameraType
 
-import numpy as np
 import torch
 from jaxtyping import Float
+from nerfstudio.cameras.cameras import Cameras
 from nerfstudio.data.datamanagers.full_images_datamanager import (
     FullImageDatamanager,
     FullImageDatamanagerConfig,
 )
 from nerfstudio.utils.rich_utils import CONSOLE
 
-from feature_splatting.feature_extractor_cfg import SAMCLIPArgs
-
 # SAMCLIP
 from feature_splatting.feature_extractor import batch_extract_feature
+from feature_splatting.feature_extractor_cfg import SAMCLIPArgs
 
 feat_type_to_extract_fn = {
     "CLIP": None,
@@ -35,6 +33,7 @@ feat_type_to_main_feature_name = {
     "SAMCLIP": "samclip",
 }
 
+
 @dataclass
 class FeatureSplattingDataManagerConfig(FullImageDatamanagerConfig):
     _target: Type = field(default_factory=lambda: FeatureSplattingDataManager)
@@ -42,6 +41,7 @@ class FeatureSplattingDataManagerConfig(FullImageDatamanagerConfig):
     """Feature type to extract."""
     enable_cache: bool = True
     """Whether to cache extracted features."""
+
 
 class FeatureSplattingDataManager(FullImageDatamanager):
     config: FeatureSplattingDataManagerConfig
@@ -73,7 +73,7 @@ class FeatureSplattingDataManager(FullImageDatamanager):
         # Garbage collect
         torch.cuda.empty_cache()
         gc.collect()
-    
+
     def extract_features(self) -> Dict[str, Float[torch.Tensor, "n h w c"]]:
         # Extract features
         if self.config.feature_type not in feat_type_to_extract_fn:
@@ -108,16 +108,16 @@ class FeatureSplattingDataManager(FullImageDatamanager):
 
     def next_train(self, step: int) -> Tuple[Cameras, Dict]:
         camera, data = super().next_train(step)
-        camera_idx = camera.metadata['cam_idx']
+        camera_idx = camera.metadata["cam_idx"]
         feature_dict = {}
         for feature_name in self.train_feature_dict:
             feature_dict[feature_name] = self.train_feature_dict[feature_name][camera_idx]
         data["feature_dict"] = feature_dict
         return camera, data
-    
+
     def next_eval(self, step: int) -> Tuple[Cameras, Dict]:
         camera, data = super().next_eval(step)
-        camera_idx = camera.metadata['cam_idx']
+        camera_idx = camera.metadata["cam_idx"]
         feature_dict = {}
         for feature_name in self.eval_feature_dict:
             feature_dict[feature_name] = self.eval_feature_dict[feature_name][camera_idx]

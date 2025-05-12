@@ -2,6 +2,7 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 
+
 class two_layer_mlp(nn.Module):
     def __init__(self, input_dim, hidden_dim, feature_dim_dict):
         super(two_layer_mlp, self).__init__()
@@ -18,15 +19,18 @@ class two_layer_mlp(nn.Module):
         for key, nn_mod in self.feature_branch_dict.items():
             ret_dict[key] = nn_mod(intermediate_feature)
         return ret_dict
-    
+
     @torch.no_grad()
     def per_gaussian_forward(self, x):
-        intermediate_feature = F.linear(x, self.hidden_conv.weight.view(self.hidden_conv.weight.size(0), -1), self.hidden_conv.bias)
+        intermediate_feature = F.linear(
+            x, self.hidden_conv.weight.view(self.hidden_conv.weight.size(0), -1), self.hidden_conv.bias
+        )
         intermediate_feature = F.relu(intermediate_feature)
         ret_dict = {}
         for key, nn_mod in self.feature_branch_dict.items():
             ret_dict[key] = F.linear(intermediate_feature, nn_mod.weight.view(nn_mod.weight.size(0), -1), nn_mod.bias)
         return ret_dict
+
 
 def compute_similarity(prob_mn, softmax_temp, num_pos, heatmap_method="standard_softmax"):
     """

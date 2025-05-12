@@ -1,6 +1,8 @@
-from typing import Union, List
-import torch
+from typing import List, Union
+
 import maskclip_onnx
+import torch
+
 
 class clip_text_encoder:
     def __init__(self, clip_model_name: str, device: Union[str, torch.device]):
@@ -15,4 +17,4 @@ class clip_text_encoder:
         tokens = maskclip_onnx.clip.tokenize(text_list).to(self.device)
         embed = self.clip.encode_text(tokens).float()
         embed /= embed.norm(dim=-1, keepdim=True)
-        return embed 
+        return embed

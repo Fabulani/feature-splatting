@@ -1,5 +1,5 @@
-import taichi as ti
 import numpy as np
+import taichi as ti
 
 
 @ti.func
@@ -9,8 +9,7 @@ def cross2d(a, b):
 
 @ti.func
 def inside_ccw(p, a, b, c):
-    return cross2d(a - p, b - p) >= 0 and cross2d(
-        b - p, c - p) >= 0 and cross2d(c - p, a - p) >= 0
+    return cross2d(a - p, b - p) >= 0 and cross2d(b - p, c - p) >= 0 and cross2d(c - p, a - p) >= 0
 
 
 @ti.data_oriented
@@ -23,15 +22,13 @@ class Voxelizer:
             while r < res[i]:
                 r = r * 2
             res[i] = r
-        print(f'Voxelizer resolution {res}')
+        print(f"Voxelizer resolution {res}")
         # Super sample by 2x
-        self.res = (res[0] * super_sample, res[1] * super_sample,
-                    res[2] * super_sample)
+        self.res = (res[0] * super_sample, res[1] * super_sample, res[2] * super_sample)
         self.dx = dx / super_sample
         self.inv_dx = 1 / self.dx
         self.voxels = ti.field(ti.i32)
-        self.block = ti.root.pointer(
-            ti.ijk, (self.res[0] // 8, self.res[1] // 8, self.res[2] // 8))
+        self.block = ti.root.pointer(ti.ijk, (self.res[0] // 8, self.res[1] // 8, self.res[2] // 8))
         self.block.dense(ti.ijk, 8).place(self.voxels)
 
         assert precision in [ti.f32, ti.f64]
@@ -44,8 +41,7 @@ class Voxelizer:
             self.voxels[p, q, i] += inc
 
     @ti.kernel
-    def voxelize_triangles(self, num_triangles: ti.i32,
-                           triangles: ti.types.ndarray()):
+    def voxelize_triangles(self, num_triangles: ti.i32, triangles: ti.types.ndarray()):
         for i in range(num_triangles):
             jitter_scale = ti.cast(0, self.precision)
             if ti.static(self.precision == ti.f32):
@@ -53,16 +49,10 @@ class Voxelizer:
             else:
                 jitter_scale = 1e-8
             # We jitter the vertices to prevent voxel samples from lying precicely at triangle edges
-            jitter = ti.Vector([
-                -0.057616723909439505, -0.25608986292614977,
-                0.06716309129743714
-            ]) * jitter_scale
-            a = ti.Vector([triangles[i, 0], triangles[i, 1], triangles[i, 2]
-                           ]) + jitter
-            b = ti.Vector([triangles[i, 3], triangles[i, 4], triangles[i, 5]
-                           ]) + jitter
-            c = ti.Vector([triangles[i, 6], triangles[i, 7], triangles[i, 8]
-                           ]) + jitter
+            jitter = ti.Vector([-0.057616723909439505, -0.25608986292614977, 0.06716309129743714]) * jitter_scale
+            a = ti.Vector([triangles[i, 0], triangles[i, 1], triangles[i, 2]]) + jitter
+            b = ti.Vector([triangles[i, 3], triangles[i, 4], triangles[i, 5]]) + jitter
+            c = ti.Vector([triangles[i, 6], triangles[i, 7], triangles[i, 8]]) + jitter
 
             bound_min = ti.Vector.zero(self.precision, 3)
             bound_max = ti.Vector.zero(self.precision, 3)
@@ -93,13 +83,10 @@ class Voxelizer:
 
             for p in range(p_min, p_max):
                 for q in range(q_min, q_max):
-                    pos2d = ti.Vector([(p + 0.5) * self.dx,
-                                       (q + 0.5) * self.dx])
-                    if inside_ccw(pos2d, a_proj, b_proj, c_proj) or inside_ccw(
-                            pos2d, a_proj, c_proj, b_proj):
+                    pos2d = ti.Vector([(p + 0.5) * self.dx, (q + 0.5) * self.dx])
+                    if inside_ccw(pos2d, a_proj, b_proj, c_proj) or inside_ccw(pos2d, a_proj, c_proj, b_proj):
                         base_voxel = ti.Vector([pos2d[0], pos2d[1], 0])
-                        height = int(-normal.dot(base_voxel - a) / normal[2] *
-                                     self.inv_dx + 0.5)
+                        height = int(-normal.dot(base_voxel - a) / normal[2] * self.inv_dx + 0.5)
                         height = min(height, self.res[1] - self.padding)
                         inc = 0
                         if normal[2] > 0:
@@ -126,12 +113,12 @@ class Voxelizer:
         self.voxelize_triangles(num_triangles, triangles)
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     n = 256
     vox = Voxelizer((n, n, n), 1.0 / n)
     # triangle = np.array([[0.1, 0.1, 0.1, 0.6, 0.2, 0.1, 0.5, 0.7,
     #                       0.7]]).astype(np.float32)
-    triangles = np.fromfile('triangles.npy', dtype=np.float32)
+    triangles = np.fromfile("triangles.npy", dtype=np.float32)
     triangles = np.reshape(triangles, (len(triangles) // 9, 9)) * 0.306 + 0.501
     offsets = [0.0, 0.0, 0.0]
     for i in range(9):
@@ -145,8 +132,9 @@ if __name__ == '__main__':
     voxels = vox.voxels.to_numpy().astype(np.float32)
 
     import os
-    os.makedirs('outputs', exist_ok=True)
-    gui = ti.GUI('cross section', (n, n))
+
+    os.makedirs("outputs", exist_ok=True)
+    gui = ti.GUI("cross section", (n, n))
     for i in range(n):
         gui.set_image(voxels[:, :, i])
-        gui.show(f'outputs/{i:04d}.png')
+        gui.show(f"outputs/{i:04d}.png")

@@ -1,42 +1,42 @@
-import time
 from dataclasses import dataclass, field
-from typing import Dict, List, Literal, Optional, Tuple, Type, Union
+from typing import Dict, List, Optional, Type, Union
 
 import numpy as np
 import torch
-import torch.nn as nn
 import torch.nn.functional as F
-from nerfstudio.models.splatfacto import SplatfactoModel, SplatfactoModelConfig, get_viewmat
 from nerfstudio.cameras.cameras import Cameras
+from nerfstudio.data.scene_box import OrientedBox
+from nerfstudio.models.splatfacto import SplatfactoModel, SplatfactoModelConfig, get_viewmat
 from nerfstudio.utils.rich_utils import CONSOLE
 from nerfstudio.viewer.server.viewer_elements import (
     ViewerButton,
+    ViewerCheckbox,
     ViewerNumber,
     ViewerText,
-    ViewerCheckbox,
-    ViewerSlider,
     ViewerVec3,
 )
-from nerfstudio.data.scene_box import OrientedBox
 
 # Feature splatting functions
 from torch.nn import Parameter
+
 from feature_splatting.utils import (
     ViewerUtils,
     apply_pca_colormap_return_proj,
-    two_layer_mlp,
     clip_text_encoder,
-    compute_similarity,
     cluster_instance,
+    compute_similarity,
     estimate_ground,
+    gaussian_editor,
     get_ground_bbox_min_max,
-    gaussian_editor
+    two_layer_mlp,
 )
+
 try:
     from gsplat.cuda._torch_impl import _quat_to_rotmat
     from gsplat.rendering import rasterization
 except ImportError:
     print("Please install gsplat>=1.0.0")
+
 
 @dataclass
 class FeatureSplattingModelConfig(SplatfactoModelConfig):
@@ -57,9 +57,11 @@ class FeatureSplattingModelConfig(SplatfactoModelConfig):
     # Feature Field MLP Head
     mlp_hidden_dim: int = 64
 
+
 def cosine_loss(network_output, gt):
     assert network_output.shape == gt.shape
     return (1 - F.cosine_similarity(network_output, gt, dim=0)).mean()
+
 
 class FeatureSplattingModel(SplatfactoModel):
     config: FeatureSplattingModelConfig
@@ -73,7 +75,7 @@ class FeatureSplattingModel(SplatfactoModel):
             assert self.config.python_compute_sh, "SH computation is only supported in python"
         else:
             assert not self.config.python_compute_sh, "SHs python compute flag should not be used with 0 SH degree"
-        
+
         # Initialize per-Gaussian features
         distill_features = torch.nn.Parameter(torch.zeros((self.means.shape[0], self.config.feat_latent_dim)))
         self.gauss_params["distill_features"] = distill_features
@@ -81,76 +83,92 @@ class FeatureSplattingModel(SplatfactoModel):
         self.main_feature_shape_chw = self.kwargs["metadata"]["feature_dim_dict"][self.main_feature_name]
 
         # Initialize the multi-head feature MLP
-        self.feature_mlp = two_layer_mlp(self.config.feat_latent_dim,
-                                         self.config.mlp_hidden_dim,
-                                         self.kwargs["metadata"]["feature_dim_dict"])
-        
+        self.feature_mlp = two_layer_mlp(
+            self.config.feat_latent_dim, self.config.mlp_hidden_dim, self.kwargs["metadata"]["feature_dim_dict"]
+        )
+
         # Visualization utils
         self.maybe_populate_text_encoder()
         self.setup_gui()
 
         self.gaussian_editor = gaussian_editor()
-    
+
     def maybe_populate_text_encoder(self):
         if "clip_model_name" in self.kwargs["metadata"]:
             assert "clip" in self.main_feature_name.lower(), "CLIP model name should only be used with CLIP features"
-            self.clip_text_encoder = clip_text_encoder(self.kwargs["metadata"]["clip_model_name"], self.kwargs["device"])
+            self.clip_text_encoder = clip_text_encoder(
+                self.kwargs["metadata"]["clip_model_name"], self.kwargs["device"]
+            )
             self.text_encoding_func = self.clip_text_encoder.get_text_token
         else:
             self.text_encoding_func = None
-    
+
     def setup_gui(self):
         self.viewer_utils = ViewerUtils(self.text_encoding_func)
         # Note: the GUI elements are shown based on alphabetical variable names
-        self.btn_refresh_pca = ViewerButton("Refresh PCA Projection", cb_hook=lambda _: self.viewer_utils.reset_pca_proj())
+        self.btn_refresh_pca = ViewerButton(
+            "Refresh PCA Projection", cb_hook=lambda _: self.viewer_utils.reset_pca_proj()
+        )
         if "clip" in self.main_feature_name.lower():
             self.hint_text = ViewerText(name="Note:", disabled=True, default_value="Use , to separate labels")
             self.lang_1_pos_text = ViewerText(
                 name="Positive Text Queries",
                 default_value="",
-                cb_hook=lambda elem: self.viewer_utils.update_text_embedding('positive', elem.value),
+                cb_hook=lambda elem: self.viewer_utils.update_text_embedding("positive", elem.value),
             )
             self.lang_2_neg_text = ViewerText(
                 name="Negative Text Queries",
                 default_value="object",
-                cb_hook=lambda elem: self.viewer_utils.update_text_embedding('negative', elem.value),
+                cb_hook=lambda elem: self.viewer_utils.update_text_embedding("negative", elem.value),
             )
             # call the callback function with the default value
-            self.viewer_utils.update_text_embedding('negative', self.lang_2_neg_text.default_value)
+            self.viewer_utils.update_text_embedding("negative", self.lang_2_neg_text.default_value)
             self.lang_ground_text = ViewerText(
                 name="Ground Text Queries",
                 default_value="floor",
-                cb_hook=lambda elem: self.viewer_utils.update_text_embedding('ground', elem.value),
+                cb_hook=lambda elem: self.viewer_utils.update_text_embedding("ground", elem.value),
             )
-            self.viewer_utils.update_text_embedding('ground', self.lang_ground_text.default_value)
+            self.viewer_utils.update_text_embedding("ground", self.lang_ground_text.default_value)
             self.softmax_temp = ViewerNumber(
                 name="Softmax temperature",
                 default_value=self.viewer_utils.softmax_temp,
                 cb_hook=lambda elem: self.viewer_utils.update_softmax_temp(elem.value),
             )
             # ===== Start Editing utility =====
-            self.edit_checkbox = ViewerCheckbox("Enter Editing Mode", default_value=False, cb_hook=lambda _: self.start_editing())
+            self.edit_checkbox = ViewerCheckbox(
+                "Enter Editing Mode", default_value=False, cb_hook=lambda _: self.start_editing()
+            )
             # Ground estimation
-            self.estimate_ground_btn = ViewerButton("Estimate Ground", cb_hook=lambda _: self.estimate_ground(), disabled=True, visible=False)
+            self.estimate_ground_btn = ViewerButton(
+                "Estimate Ground", cb_hook=lambda _: self.estimate_ground(), disabled=True, visible=False
+            )
             # Main object segmentation
-            self.segment_main_obj_btn = ViewerButton("Segment main obj", cb_hook=lambda _: self.segment_positive_obj(), disabled=True, visible=False)
+            self.segment_main_obj_btn = ViewerButton(
+                "Segment main obj", cb_hook=lambda _: self.segment_positive_obj(), disabled=True, visible=False
+            )
             self.bbox_min_offset_vec = ViewerVec3("BBox Min", default_value=(0, 0, 0), disabled=True, visible=False)
             self.bbox_max_offset_vec = ViewerVec3("BBox Max", default_value=(0, 0, 0), disabled=True, visible=False)
-            self.main_obj_only_checkbox = ViewerCheckbox("View main object only", default_value=True, disabled=True, visible=False)
+            self.main_obj_only_checkbox = ViewerCheckbox(
+                "View main object only", default_value=True, disabled=True, visible=False
+            )
             # Basic editing
             self.translation_vec = ViewerVec3("Translation", default_value=(0, 0, 0), disabled=True, visible=False)
-            self.yaw_rotation = ViewerNumber("Yaw-only Rotation (deg)", default_value=0., disabled=True, visible=False)
+            self.yaw_rotation = ViewerNumber("Yaw-only Rotation (deg)", default_value=0.0, disabled=True, visible=False)
             # Physics simulation
-            self.physics_sim_checkbox = ViewerCheckbox("Physics Simulation", default_value=False, disabled=True, visible=False)
-            self.physics_sim_step_btn = ViewerButton("Physics Simulation Step", disabled=True, visible=False, cb_hook=lambda _: self.physics_sim_step())
-    
+            self.physics_sim_checkbox = ViewerCheckbox(
+                "Physics Simulation", default_value=False, disabled=True, visible=False
+            )
+            self.physics_sim_step_btn = ViewerButton(
+                "Physics Simulation Step", disabled=True, visible=False, cb_hook=lambda _: self.physics_sim_step()
+            )
+
     def physics_sim_step(self):
         # It's just a placeholder now. NS needs some user interaction to send rendering requests.
         # So I make a button that does nothing but to trigger rendering.
         pass
-    
+
     def estimate_ground(self):
-        selected_obj_idx, sample_idx = self.segment_gaussian('ground', use_canonical=True, threshold=0.5)
+        selected_obj_idx, sample_idx = self.segment_gaussian("ground", use_canonical=True, threshold=0.5)
         ground_means_xyz = self.means[sample_idx].detach().cpu().numpy()[selected_obj_idx]
         self.ground_R, self.ground_T, ground_inliers = estimate_ground(ground_means_xyz)
         self.gaussian_editor.register_ground_transform(self.ground_R, self.ground_T)
@@ -158,13 +176,13 @@ class FeatureSplattingModel(SplatfactoModel):
         # Enable next step
         self.segment_main_obj_btn.set_disabled(False)
         self.segment_main_obj_btn.set_visible(True)
-    
+
     def start_editing(self):
         self.estimate_ground_btn.set_disabled(False)
         self.estimate_ground_btn.set_visible(True)
 
     def segment_positive_obj(self):
-        selected_obj_idx, sample_idx = self.segment_gaussian('positive', use_canonical=False)
+        selected_obj_idx, sample_idx = self.segment_gaussian("positive", use_canonical=False)
 
         all_xyz = self.means.detach().cpu().numpy()
         selected_xyz = all_xyz[sample_idx]
@@ -198,8 +216,10 @@ class FeatureSplattingModel(SplatfactoModel):
         self.physics_sim_checkbox.set_visible(True)
         self.physics_sim_step_btn.set_disabled(False)
         self.physics_sim_step_btn.set_visible(True)
-    
-    def segment_gaussian(self, field_name : str, use_canonical : bool, sample_size : Optional[int] = 2**15, threshold : Optional[float] = 0.5):
+
+    def segment_gaussian(
+        self, field_name: str, use_canonical: bool, sample_size: Optional[int] = 2**15, threshold: Optional[float] = 0.5
+    ):
         if "clip" not in self.main_feature_name.lower():
             return
         if sample_size is not None:
@@ -214,13 +234,15 @@ class FeatureSplattingModel(SplatfactoModel):
         clip_feature_cn = clip_feature_nc.permute(1, 0)
 
         # Use paired softmax method as described in the paper with positive and negative texts
-        if not use_canonical and self.viewer_utils.is_embed_valid('negative'):
-            neg_embedding = self.viewer_utils.get_text_embed('negative')
+        if not use_canonical and self.viewer_utils.is_embed_valid("negative"):
+            neg_embedding = self.viewer_utils.get_text_embed("negative")
         else:
-            neg_embedding = self.viewer_utils.get_text_embed('canonical')
+            neg_embedding = self.viewer_utils.get_text_embed("canonical")
         text_embs = torch.cat([self.viewer_utils.get_text_embed(field_name), neg_embedding], dim=0)
         raw_sims = torch.einsum("cm,nc->nm", clip_feature_cn, text_embs)
-        pos_sim = compute_similarity(raw_sims, self.viewer_utils.softmax_temp, self.viewer_utils.get_embed_shape(field_name)[0])
+        pos_sim = compute_similarity(
+            raw_sims, self.viewer_utils.softmax_temp, self.viewer_utils.get_embed_shape(field_name)[0]
+        )
 
         # pos_sim -= pos_sim.min()
         # pos_sim /= pos_sim.max()
@@ -353,8 +375,8 @@ class FeatureSplattingModel(SplatfactoModel):
 
         if background.shape[0] == 3 and not self.training:
             background = background.expand(H, W, 3)
-        
-        feature = render[:, ..., 3:3 + self.config.feat_latent_dim]
+
+        feature = render[:, ..., 3 : 3 + self.config.feat_latent_dim]
 
         return {
             "rgb": rgb.squeeze(0),  # type: ignore
@@ -364,47 +386,61 @@ class FeatureSplattingModel(SplatfactoModel):
             "feature": feature.squeeze(0),  # type: ignore
         }  # type: ignore
 
-    def decode_features(self, features_hwc: torch.Tensor, resize_factor: float = 1.) -> Dict[str, torch.Tensor]:
+    def decode_features(self, features_hwc: torch.Tensor, resize_factor: float = 1.0) -> Dict[str, torch.Tensor]:
         # Decode features
         feature_chw = features_hwc.permute(2, 0, 1)
-        feature_shape_hw = (int(self.main_feature_shape_chw[1] * resize_factor), int(self.main_feature_shape_chw[2] * resize_factor))
-        rendered_feat = F.interpolate(feature_chw.unsqueeze(0), size=feature_shape_hw, mode="bilinear", align_corners=False)
+        feature_shape_hw = (
+            int(self.main_feature_shape_chw[1] * resize_factor),
+            int(self.main_feature_shape_chw[2] * resize_factor),
+        )
+        rendered_feat = F.interpolate(
+            feature_chw.unsqueeze(0), size=feature_shape_hw, mode="bilinear", align_corners=False
+        )
         rendered_feat_dict = self.feature_mlp(rendered_feat)
         # Rest of the features
         for key, feat_shape_chw in self.kwargs["metadata"]["feature_dim_dict"].items():
             if key != self.main_feature_name:
-                rendered_feat_dict[key] = F.interpolate(rendered_feat_dict[key], size=feat_shape_chw[1:], mode="bilinear", align_corners=False)
+                rendered_feat_dict[key] = F.interpolate(
+                    rendered_feat_dict[key], size=feat_shape_chw[1:], mode="bilinear", align_corners=False
+                )
             rendered_feat_dict[key] = rendered_feat_dict[key].squeeze(0)
         return rendered_feat_dict
-    
+
     def get_loss_dict(self, outputs, batch, metrics_dict=None) -> Dict[str, torch.Tensor]:
         # Splatfacto computes the loss for the rgb image
         loss_dict = super().get_loss_dict(outputs, batch, metrics_dict)
-        for k in batch['feature_dict']:
-            batch['feature_dict'][k] = batch['feature_dict'][k].to(self.device)
+        for k in batch["feature_dict"]:
+            batch["feature_dict"][k] = batch["feature_dict"][k].to(self.device)
         decoded_feature_dict = self.decode_features(outputs["feature"])
         feature_loss = torch.tensor(0.0, device=self.device)
-        for key, target_feat in batch['feature_dict'].items():
+        for key, target_feat in batch["feature_dict"].items():
             cur_loss_weight = 1.0 if key == self.main_feature_name else self.config.feat_aux_loss_weight
-            ignore_feat_mask = (torch.sum(target_feat == 0, dim=0) == target_feat.shape[0])
+            ignore_feat_mask = torch.sum(target_feat == 0, dim=0) == target_feat.shape[0]
             target_feat[:, ignore_feat_mask] = decoded_feature_dict[key][:, ignore_feat_mask]
             feature_loss += cosine_loss(decoded_feature_dict[key], target_feat) * cur_loss_weight
         loss_dict["feature_loss"] = self.config.feat_loss_weight * feature_loss
         return loss_dict
-    
+
     @torch.no_grad()
     def get_outputs_for_camera(self, camera: Cameras, obb_box: Optional[OrientedBox] = None) -> Dict[str, torch.Tensor]:
         """This function is not called during training, but used for visualization in browser. So we can use it to
         add visualization not needed during training.
         """
-        editing_dict = self.gaussian_editor.prepare_editing_dict(self.translation_vec.value, self.yaw_rotation.value, self.physics_sim_checkbox.value)
+        editing_dict = self.gaussian_editor.prepare_editing_dict(
+            self.translation_vec.value, self.yaw_rotation.value, self.physics_sim_checkbox.value
+        )
         if self.edit_checkbox.value:
             # Editing mode
-            self.gaussian_editor.pre_rendering_process(self.means, self.opacities, self.scales, self.quats,
-                                                       editing_dict=editing_dict,
-                                                       min_offset=torch.tensor(self.bbox_min_offset_vec.value).float().cuda() / 10.0,
-                                                       max_offset=torch.tensor(self.bbox_max_offset_vec.value).float().cuda() / 10.0,
-                                                       view_main_obj_only=self.main_obj_only_checkbox.value)
+            self.gaussian_editor.pre_rendering_process(
+                self.means,
+                self.opacities,
+                self.scales,
+                self.quats,
+                editing_dict=editing_dict,
+                min_offset=torch.tensor(self.bbox_min_offset_vec.value).float().cuda() / 10.0,
+                max_offset=torch.tensor(self.bbox_max_offset_vec.value).float().cuda() / 10.0,
+                view_main_obj_only=self.main_obj_only_checkbox.value,
+            )
         outs = super().get_outputs_for_camera(camera, obb_box)
         if self.edit_checkbox.value:
             self.gaussian_editor.post_rendering_process(self.means, self.opacities, self.quats, self.scales)
@@ -417,39 +453,43 @@ class FeatureSplattingModel(SplatfactoModel):
         )
         # TODO(roger): this resize factor affects the resolution of similarity map. Maybe we should use a fixed size?
         decoded_feature_dict = self.decode_features(outs["feature"], resize_factor=8)
-        if "clip" in self.main_feature_name.lower() and self.viewer_utils.is_embed_valid('positive'):
+        if "clip" in self.main_feature_name.lower() and self.viewer_utils.is_embed_valid("positive"):
             clip_features = decoded_feature_dict[self.main_feature_name]
             clip_features /= clip_features.norm(dim=0, keepdim=True)
 
             # Use paired softmax method as described in the paper with positive and negative texts
-            if self.viewer_utils.is_embed_valid('negative'):
-                neg_embedding = self.viewer_utils.get_text_embed('negative')
+            if self.viewer_utils.is_embed_valid("negative"):
+                neg_embedding = self.viewer_utils.get_text_embed("negative")
             else:
-                neg_embedding = self.viewer_utils.get_text_embed('canonical')
-            text_embs = torch.cat([self.viewer_utils.get_text_embed('positive'), neg_embedding], dim=0)
+                neg_embedding = self.viewer_utils.get_text_embed("canonical")
+            text_embs = torch.cat([self.viewer_utils.get_text_embed("positive"), neg_embedding], dim=0)
             raw_sims = torch.einsum("chw,nc->nhw", clip_features, text_embs)
             sim_shape_hw = raw_sims.shape[1:]
 
             raw_sims = raw_sims.reshape(raw_sims.shape[0], -1)
-            pos_sim = compute_similarity(raw_sims, self.viewer_utils.softmax_temp, self.viewer_utils.get_embed_shape('positive')[0])
-            outs["similarity"] = pos_sim.reshape(sim_shape_hw + (1,)) # H, W, 1
-            
+            pos_sim = compute_similarity(
+                raw_sims, self.viewer_utils.softmax_temp, self.viewer_utils.get_embed_shape("positive")[0]
+            )
+            outs["similarity"] = pos_sim.reshape(sim_shape_hw + (1,))  # H, W, 1
+
             # Upsample heatmap to match size of RGB image
             # It's a bit slow since we do it on full resolution; but interpolation seems to have aliasing issues
             assert outs["similarity"].shape[2] == 1
             if outs["similarity"].shape[:2] != outs["rgb"].shape[:2]:
                 out_sim = outs["similarity"][:, :, 0]  # H, W
                 out_sim = out_sim[None, None, ...]  # 1, 1, H, W
-                outs["similarity"] = F.interpolate(out_sim, size=outs["rgb"].shape[:2], mode="bilinear", align_corners=False).squeeze()
+                outs["similarity"] = F.interpolate(
+                    out_sim, size=outs["rgb"].shape[:2], mode="bilinear", align_corners=False
+                ).squeeze()
                 outs["similarity"] = outs["similarity"][:, :, None]
         return outs
-    
+
     # ===== Utils functions for managing the gaussians =====
 
     @property
     def distill_features(self):
         return self.gauss_params["distill_features"]
-    
+
     def load_state_dict(self, dict, **kwargs):  # type: ignore
         # resize the parameters to match the new number of points
         self.step = 30000
@@ -464,13 +504,13 @@ class FeatureSplattingModel(SplatfactoModel):
             new_shape = (newp,) + old_shape[1:]
             self.gauss_params[name] = torch.nn.Parameter(torch.zeros(new_shape, device=self.device))
         super().load_state_dict(dict, **kwargs)
-    
+
     def split_gaussians(self, split_mask, samps):
         """
         This function splits gaussians that are too large
         """
         n_splits = split_mask.sum().item()
-        CONSOLE.log(f"Splitting {split_mask.sum().item()/self.num_points} gaussians: {n_splits}/{self.num_points}")
+        CONSOLE.log(f"Splitting {split_mask.sum().item() / self.num_points} gaussians: {n_splits}/{self.num_points}")
         centered_samples = torch.randn((samps * n_splits, 3), device=self.device)  # Nx3 of axis-aligned scales
         scaled_samples = (
             torch.exp(self.scales[split_mask].repeat(samps, 1)) * centered_samples
@@ -509,18 +549,15 @@ class FeatureSplattingModel(SplatfactoModel):
     def get_gaussian_param_groups(self) -> Dict[str, List[Parameter]]:
         # Here we explicitly use the means, scales as parameters so that the user can override this function and
         # specify more if they want to add more optimizable params to gaussians.
-        return {
-            name: [self.gauss_params[name]]
-            for name in self.gauss_params.keys()
-        }
-    
+        return {name: [self.gauss_params[name]] for name in self.gauss_params.keys()}
+
     def get_param_groups(self) -> Dict[str, List[Parameter]]:
         # Gather Gaussian-related parameters
         # The distill_features parameter is added via the get_gaussian_param_groups method
         param_groups = super().get_param_groups()
         param_groups["feature_mlp"] = list(self.feature_mlp.parameters())
         return param_groups
-    
+
     def get_metrics_dict(self, outputs, batch) -> Dict[str, torch.Tensor]:
         """Compute and returns metrics.
 
