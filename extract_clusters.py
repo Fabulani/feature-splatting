@@ -1,13 +1,13 @@
 from feature_splatting.model import FeatureSplattingModel, FeatureSplattingModelConfig
 import tyro
-from nerfstudio.configs.base_config import Config
+from nerfstudio.configs.method_configs import method_configs
+
 
 # Replace with the path to your config YAML file
 config_path = "data/nerfstudio/garden_8/garden_8/feature-splatting/2025-05-12_071531/config.yml"
 
 # Load the configuration
-config = tyro.cli(Config, args=["--load-config", config_path])
-
+config = tyro.cli(method_configs["feature-splatting"], args=["--load-config", config_path])
 
 
 
