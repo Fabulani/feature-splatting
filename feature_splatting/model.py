@@ -162,6 +162,11 @@ class FeatureSplattingModel(SplatfactoModel):
                 "Physics Simulation Step", disabled=True, visible=False, cb_hook=lambda _: self.physics_sim_step()
             )
 
+            # @fabulani: Feature clustering
+            self.extract_clusters = ViewerButton(
+                "Extract clusters", cb_hook=lambda _: self.extract_clusters(), disabled=False, visible=True
+            )
+
     def physics_sim_step(self):
         # It's just a placeholder now. NS needs some user interaction to send rendering requests.
         # So I make a button that does nothing but to trigger rendering.
