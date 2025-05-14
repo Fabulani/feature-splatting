@@ -619,15 +619,32 @@ class FeatureSplattingModel(SplatfactoModel):
         ground_min, ground_max = get_ground_bbox_min_max(all_xyz, subset_idx, self.ground_R, self.ground_T)
 
         print("Saving clustered information to a text file...")
-        # Save the clustered information to a text file
-        with open("clusters_info.txt", "w") as file:
-            file.write("Clustered Points:\n")
-            file.write(str(selected_xyz[selected_obj_idx]) + "\n")
-            file.write("Indices:\n")
-            file.write(str(sample_idx[selected_obj_idx]) + "\n")
-            file.write("Bounding Box:\n")
-            file.write(str((ground_min, ground_max)) + "\n")
-        print("Saved to clusters_info.txt")
+        import pandas as pd
+
+        print("Saving clustered information to a DataFrame...")
+        df_points = pd.DataFrame(
+            selected_xyz[selected_obj_idx],
+            columns=["x", "y", "z"]
+        )
+        df_points["index"] = sample_idx[selected_obj_idx].tolist()
+        df_points.to_csv("clusters_info.csv", index=False)
+
+        print("Saving bounding box information to a JSON file...")
+        ground_min = np.array(ground_min)
+        ground_max = np.array(ground_max)
+        bbox_data = {
+            "bbox_min_x": ground_min[0],
+            "bbox_min_y": ground_min[1],
+            "bbox_min_z": ground_min[2],
+            "bbox_max_x": ground_max[0],
+            "bbox_max_y": ground_max[1],
+            "bbox_max_z": ground_max[2],
+        }
+
+        with open("clusters_bbox.json", "w") as f:
+            import json
+            json.dump(bbox_data, f, indent=4)
+
         print("Done!")
 
         return {
