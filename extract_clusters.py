@@ -2,7 +2,7 @@ from feature_splatting.model import FeatureSplattingModel, FeatureSplattingModel
 import yaml
 
 # Replace with the path to your config YAML file
-config_path = "data/nerfstudio/garden_8/garden_8/feature-splatting/2025-05-12_071531/config.yml"
+config_path = "../data/nerfstudio/garden_8/garden_8/feature-splatting/2025-05-12_071531/config.yml"
 
 
 
