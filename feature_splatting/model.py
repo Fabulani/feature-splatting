@@ -597,23 +597,39 @@ class FeatureSplattingModel(SplatfactoModel):
                 - 'bounding_box': A tuple containing the min and max bounds of the cluster.
         """
         # Segment the Gaussian features
+        print("Segmenting...")
         selected_obj_idx, sample_idx = self.segment_gaussian(field_name, use_canonical=False, threshold=threshold)
 
         # Get all 3D coordinates
+        print("Getting all 3D coordinates...")
         all_xyz = self.means.detach().cpu().numpy()
         selected_xyz = all_xyz[sample_idx]
 
         # Cluster the selected features
+        print("Clustering...")
         selected_obj_idx = cluster_instance(selected_xyz, selected_obj_idx)
 
         # Get the boolean flag of selected particles
+        print("Getting boolean flag of selected particles...")
         subset_idx = np.zeros(self.means.shape[0], dtype=bool)
         subset_idx[sample_idx[selected_obj_idx]] = True
 
         # Calculate the bounding box for the cluster
+        print("Calculating bounding box...")
         ground_min, ground_max = get_ground_bbox_min_max(all_xyz, subset_idx, self.ground_R, self.ground_T)
 
-        # Return the clustered points, indices, and bounding box
+        print("Saving clustered information to a text file...")
+        # Save the clustered information to a text file
+        with open("clusters_info.txt", "w") as file:
+            file.write("Clustered Points:\n")
+            file.write(str(clusters['clustered_points']) + "\n")
+            file.write("Indices:\n")
+            file.write(str(clusters['indices']) + "\n")
+            file.write("Bounding Box:\n")
+            file.write(str(clusters['bounding_box']) + "\n")
+        print("Saved to clusters_info.txt")
+        print("Done!")
+
         return {
             'clustered_points': selected_xyz[selected_obj_idx],
             'indices': sample_idx[selected_obj_idx],
