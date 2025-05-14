@@ -622,11 +622,11 @@ class FeatureSplattingModel(SplatfactoModel):
         # Save the clustered information to a text file
         with open("clusters_info.txt", "w") as file:
             file.write("Clustered Points:\n")
-            file.write(str(clusters['clustered_points']) + "\n")
+            file.write(str(selected_xyz[selected_obj_idx]) + "\n")
             file.write("Indices:\n")
-            file.write(str(clusters['indices']) + "\n")
+            file.write(str(sample_idx[selected_obj_idx]) + "\n")
             file.write("Bounding Box:\n")
-            file.write(str(clusters['bounding_box']) + "\n")
+            file.write(str((ground_min, ground_max)) + "\n")
         print("Saved to clusters_info.txt")
         print("Done!")
 
