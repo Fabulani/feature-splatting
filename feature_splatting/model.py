@@ -163,7 +163,7 @@ class FeatureSplattingModel(SplatfactoModel):
             )
 
             # @fabulani: Feature clustering
-            self.extract_clusters = ViewerButton(
+            self.extract_clusters_btn = ViewerButton(
                 "Extract clusters", cb_hook=lambda _: self.extract_clusters(), disabled=False, visible=True
             )
 
