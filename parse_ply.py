@@ -8,16 +8,29 @@ pcd = o3d.io.read_point_cloud(ply_path)
 
 # Then dump the points into a numpy array
 points = np.asarray(pcd.points)
-print(points)
+print(len(points))
 
-# This will be the class_id array. Every point must have at least one class_id. Assume `0.0` as "no class".
-class_ids = np.zeroes(len(points))
+# # This will be the class_id array. Every point must have at least one class_id. Assume `0.0` as "no class".
+# class_ids = np.zeros(len(points))
 
-# Dummy values to test. Test ply has >40k points
-class_ids[:10000] = [0.0]
-class_ids[10000:20000] = [1.0]
-class_ids[20000:30000] = [1.0, 2.0]
-class_ids[30000:] = [0.0]
+# # Dummy values to test. Test ply has >40k points
+# class_ids[:10000] = [0.0]
+# class_ids[10000:20000] = [1.0]
+# class_ids[20000:30000] = [1.0, 2.0]
+# class_ids[30000:] = [0.0]
+
+class_ids = [ [] for _ in range(len(points)) ]
+
+# dummy values
+for i in range(10000):
+    class_ids[i] = [0.0]  
+for i in range(10000, 20000):
+    class_ids[i] = [1.0]
+for i in range(20000, 30000):
+    class_ids[i] = [1.0, 2.0]  
+for i in range(30000, len(points)):
+    class_ids[i] = [0.0]
+
 
 
 def standard_properties(point):
