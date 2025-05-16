@@ -6,11 +6,13 @@ from tqdm import tqdm
 ply_path = "../data/nerfstudio/garden_8/sparse_pc.ply"
 
 with open(ply_path, "r") as f:
-    line = f.readline()
-    print(line)
-    if (line=="end_header\n"):
-        print("Empty PLY file")
-        exit(0)
+    print("header")
+    for line in f:
+        print(line.strip())
+        if line.strip() == "end_header":
+            print("end header")
+            break
+
 
 # Load ply with open3d
 
