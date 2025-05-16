@@ -2,8 +2,18 @@ import numpy as np
 import open3d as o3d
 from tqdm import tqdm
 
-# Load ply with open3d
+#TODO: parse read a gaussian splatting ply: position, rotation, scale, color, sh
 ply_path = "../data/nerfstudio/garden_8/sparse_pc.ply"
+
+with open(ply_path, "r") as f:
+    line = f.readline()
+    print(line)
+    if (line=="end_header\n"):
+        print("Empty PLY file")
+        exit(0)
+
+# Load ply with open3d
+
 pcd = o3d.io.read_point_cloud(ply_path)
 
 # Then dump the points into a numpy array
