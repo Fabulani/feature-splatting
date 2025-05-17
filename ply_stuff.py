@@ -35,9 +35,10 @@ property list uchar float class_id
 At first, we assume a class limit of 3, so every class_id is size 3.
 """
 
-ply_path = "../data/nerfstudio/garden_8/sparse_pc.ply"
+sparse_ply = "../data/nerfstudio/garden_8/sparse_pc.ply"
+gaussian_ply = "../data/.temp/splat.ply"
 
-plydata = PlyData.read(ply_path)
+plydata = PlyData.read(gaussian_ply)
 
 print('element 0 name', plydata.elements[0].name)
 print('element 0 to list', plydata.elements[0].data[0].tolist())
