@@ -1,5 +1,6 @@
 from plyfile import PlyData, PlyElement
 import numpy as np
+import pandas as pd
 
 """ 
 Contents of the gaussian splat PLY:
@@ -30,21 +31,51 @@ end_header
 
 The goal is to add class_id to the PLY file: 
 
-property list uchar float class_id
+- Option 1: property list uchar float class_id. Problem: can't memory map list properties unless they have fixed size. In a pandas dataframe, it's more efficient to have multiple dataframe columns for each class_id anyway.
+- Option 2: multiple class_id properties, e.g., class_id_0, class_id_1, class_id_2, etc. Enforces limited amount of classes, and requires deciding how the classes are determined (top 5 classes with highest similarity score?). Most efficient for memory mapping and dataframes.
 
-At first, we assume a class limit of 3, so every class_id is size 3.
+At first, we implement Option 2, assuming 3 classes.
 """
 
-sparse_ply = "../data/nerfstudio/garden_8/sparse_pc.ply"
-gaussian_ply = "../data/.temp/splat.ply"
+# Path to files
+sparse_ply = "../data/nerfstudio/garden_8/sparse_pc.ply"  # 42k vertex, pos + rgb
+gaussian_ply = "../data/.temp/splat.ply"  # 500k vertex, pos + normal + opacity + scale + rotation etc
+dummy_ply = "../data/.temp/dummy_sparse.ply"  # 5 vertex, pos + rgb
 
-plydata = PlyData.read(gaussian_ply)
+# Read inputs
+plydata = PlyData.read(dummy_ply)
+
+# Dummy class_id dataframe
+def create_dummy_class_id_df():
+    # class_id=0 -> no class, or 'other'.
+    data = {
+        'vertex_index': [0, 1, 2, 3, 4],
+        'class_0': [0, 1, 1, 1, 2],
+        'class_1': [0, 0, 2, 2, 0],
+        'class_2': [0, 0, 0, 3, 0],
+        'class_id': [
+            [1],
+            [1],
+            [1, 2],
+            [1, 2, 3],
+            [3]
+        ]
+    }
+    df = pd.DataFrame(data)
+    df.to_csv("dummy_vertex_classes.csv", index=False, float_format="%.2f")
+    return df
+class_id_df = create_dummy_class_id_df()
+print("Class ID DataFrame:", class_id_df)
+
 
 print('element 0 name', plydata.elements[0].name)
 print('element 0 to list', plydata.elements[0].data[0].tolist())
 print('x', plydata.elements[0].data['x'])
-print('opacity', plydata['vertex'].data['opacity'][0])
+# print('opacity', plydata['vertex'].data['opacity'][0])
 print('x convenience', plydata['vertex']['x'])
 print('direct access', plydata['vertex'][0].tolist())
 print('metadata properties', plydata.elements[0].properties)
 print('element 0 count', plydata.elements[0].count)
+
+print("\n---------------------------------\n")
+
