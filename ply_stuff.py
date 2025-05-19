@@ -54,10 +54,10 @@ def create_dummy_class_id_df():
         # 'class_1': [0, 0, 2, 2, 0],
         # 'class_2': [0, 0, 0, 3, 0],
         'class_id': [
-            [1],
-            [1],
-            [1, 2],
-            [1, 2, 3],
+            [1.0],
+            [1.0],
+            [1.0, 2.0],
+            [1.0, 2.0, 3.0],
             []
         ]
     }
@@ -77,7 +77,7 @@ print("Class ID Numpy Array:", class_id_np)
 
 # Convert class_id_array to a list of tuples with list structure
 # 'list' property values in plyfile must be tuples: (len, [items])
-class_id_tuples = [(len(lst), lst) for lst in class_id_np]
+# class_id_tuples = [(len(lst), lst) for lst in class_id_np]
 
 old_vertices = plydata['vertex'].data
 vertices_count = plydata['vertex'].count
@@ -90,7 +90,7 @@ extended_dtype = old_dtype + [('class_id', object)]  # list properties must be o
 new_vertex_array = np.empty(vertices_count, dtype=extended_dtype)
 for name in old_vertices.dtype.names:
     new_vertex_array[name] = old_vertices[name]
-new_vertex_array['class_id'] = class_id_tuples  # Assume all indices have at least an empty list of class ids
+new_vertex_array['class_id'] = class_id_np  # Assume all indices have at least an empty list of class ids
 
 # New PlyElement first
 new_vertex_el = PlyElement.describe(
