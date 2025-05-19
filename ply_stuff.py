@@ -50,9 +50,9 @@ def create_dummy_class_id_df():
     # class_id=0 -> no class, or 'other'.
     data = {
         'vertex_index': [0, 1, 2, 3, 4],
-        'class_0': [0, 1, 1, 1, 2],
-        'class_1': [0, 0, 2, 2, 0],
-        'class_2': [0, 0, 0, 3, 0],
+        # 'class_0': [0, 1, 1, 1, 2],
+        # 'class_1': [0, 0, 2, 2, 0],
+        # 'class_2': [0, 0, 0, 3, 0],
         'class_id': [
             [1],
             [1],
@@ -65,17 +65,20 @@ def create_dummy_class_id_df():
     df.to_csv("dummy_vertex_classes.csv", index=False, float_format="%.2f")
     return df
 class_id_df = create_dummy_class_id_df()
+class_id_np = class_id_df.to_numpy()
+
 print("Class ID DataFrame:", class_id_df)
+print("Class ID Numpy Array:", class_id_np)
 
 
-print('element 0 name', plydata.elements[0].name)
-print('element 0 to list', plydata.elements[0].data[0].tolist())
-print('x', plydata.elements[0].data['x'])
+# print('element 0 name', plydata.elements[0].name)
+# print('element 0 to list', plydata.elements[0].data[0].tolist())
+# print('x', plydata.elements[0].data['x'])
 # print('opacity', plydata['vertex'].data['opacity'][0])
-print('x convenience', plydata['vertex']['x'])
-print('direct access', plydata['vertex'][0].tolist())
-print('metadata properties', plydata.elements[0].properties)
-print('element 0 count', plydata.elements[0].count)
+# print('x convenience', plydata['vertex']['x'])
+# print('direct access', plydata['vertex'][0].tolist())
+print('metadata properties:', plydata.elements[0].properties)
+print('Vertex count:', plydata.elements[0].count)
 
 print("\n---------------------------------\n")
 
