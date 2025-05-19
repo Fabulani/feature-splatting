@@ -2,10 +2,6 @@ from plyfile import PlyData, PlyElement
 import numpy as np
 import pandas as pd
 
-"""
-Temporary comment: this script works for dummy class_id dataframe and ply.
-"""
-
 """ 
 Contents of the gaussian splat PLY:
 
@@ -42,46 +38,62 @@ At first, we implement Option 2, assuming 3 classes.
 """
 
 # Path to files
-sparse_ply = "../data/nerfstudio/garden_8/sparse_pc.ply"  # 42k vertex, pos + rgb
 gaussian_ply = "../data/.temp/splat.ply"  # 500k vertex, pos + normal + opacity + scale + rotation etc
-dummy_ply = "../data/.temp/dummy_sparse.ply"  # 5 vertex, pos + rgb
 
 # Read inputs
-plydata = PlyData.read(dummy_ply)
+plydata = PlyData.read(gaussian_ply)
 
-# Dummy class_id dataframe
-def create_dummy_class_id_df():
-    # class_id=0 -> no class, or 'other'.
-    data = {
-        'vertex_index': [0, 1, 2, 3, 4],
-        # 'class_0': [0, 1, 1, 1, 2],
-        # 'class_1': [0, 0, 2, 2, 0],
-        # 'class_2': [0, 0, 0, 3, 0],
-        'class_id': [
-            [1.0],
-            [1.0],
-            [1.0, 2.0],
-            [1.0, 2.0, 3.0],
-            []
-        ]
-    }
-    df = pd.DataFrame(data)
-    df.to_csv("dummy_vertex_classes.csv", index=False, float_format="%.2f")
-    return df
-class_id_df = create_dummy_class_id_df()
-class_id_np = class_id_df['class_id'].to_numpy()
+# # Dummy class_id dataframe
+# def create_dummy_class_id_df():
+#     # class_id=0 -> no class, or 'other'.
+#     data = {
+#         'vertex_index': [0, 1, 2, 3, 4],
+#         # 'class_0': [0, 1, 1, 1, 2],
+#         # 'class_1': [0, 0, 2, 2, 0],
+#         # 'class_2': [0, 0, 0, 3, 0],
+#         'class_id': [
+#             [1.0],
+#             [1.0],
+#             [1.0, 2.0],
+#             [1.0, 2.0, 3.0],
+#             []
+#         ]
+#     }
+#     df = pd.DataFrame(data)
+#     df.to_csv("dummy_vertex_classes.csv", index=False, float_format="%.2f")
+#     return df
+# class_id_df = create_dummy_class_id_df()
+
+vertex_count = plydata['vertex'].count
+
+class_id_df = pd.read_csv("clusters_info.csv")
+class_id_df['class_id'] = [1.0] * len(class_id_df)
+
+class_id_np = np.empty(vertex_count, dtype=object)
+
+
+# Initialize all as empty list
+for i in range(vertex_count):
+    class_id_np[i] = []
+
+# Fill in known class_ids
+for _, row in class_id_df.iterrows():
+    idx = int(row['index'])
+    class_id_np[idx] = [row['class_id']]  # wrap it as a list
+
+print('class_id_np:', class_id_np)
 
 # TODO: add option to convert class_id from int to float, and save it to ply as property list uchar float class_id (for use with CloudCompare).
 
 old_vertices = plydata['vertex'].data
-vertices_count = plydata['vertex'].count
+
 
 # Extend dtype
 old_dtype = old_vertices.dtype.descr  # list of (name, type)
 extended_dtype = old_dtype + [('class_id', object)]  # list properties must be object dtype
 
 # Create array with extended data
-new_vertex_array = np.empty(vertices_count, dtype=extended_dtype)
+new_vertex_array = np.empty(vertex_count, dtype=extended_dtype)
 for name in old_vertices.dtype.names:
     new_vertex_array[name] = old_vertices[name]
 new_vertex_array['class_id'] = class_id_np  # Assume all indices have at least an empty list of class ids
