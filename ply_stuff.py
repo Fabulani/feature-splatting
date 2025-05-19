@@ -58,27 +58,51 @@ def create_dummy_class_id_df():
             [1],
             [1, 2],
             [1, 2, 3],
-            [3]
+            []
         ]
     }
     df = pd.DataFrame(data)
     df.to_csv("dummy_vertex_classes.csv", index=False, float_format="%.2f")
     return df
 class_id_df = create_dummy_class_id_df()
-class_id_np = class_id_df.to_numpy()
+class_id_np = class_id_df['class_id'].to_numpy()
+
 
 print("Class ID DataFrame:", class_id_df)
 print("Class ID Numpy Array:", class_id_np)
 
 
-# print('element 0 name', plydata.elements[0].name)
-# print('element 0 to list', plydata.elements[0].data[0].tolist())
-# print('x', plydata.elements[0].data['x'])
-# print('opacity', plydata['vertex'].data['opacity'][0])
-# print('x convenience', plydata['vertex']['x'])
-# print('direct access', plydata['vertex'][0].tolist())
-print('metadata properties:', plydata.elements[0].properties)
-print('Vertex count:', plydata.elements[0].count)
 
-print("\n---------------------------------\n")
 
+
+# Convert class_id_array to a list of tuples with list structure
+# 'list' property values in plyfile must be tuples: (len, [items])
+class_id_tuples = [(len(lst), lst) for lst in class_id_np]
+
+old_vertices = plydata['vertex'].data
+vertices_count = plydata['vertex'].count
+
+# Extend dtype
+old_dtype = old_vertices.dtype.descr  # list of (name, type)
+extended_dtype = old_dtype + [('class_id', object)]  # list properties must be object dtype
+
+# Create array with extended data
+new_vertex_array = np.empty(vertices_count, dtype=extended_dtype)
+for name in old_vertices.dtype.names:
+    new_vertex_array[name] = old_vertices[name]
+new_vertex_array['class_id'] = class_id_tuples  # Assume all indices have at least an empty list of class ids
+
+# New PlyElement first
+new_vertex_el = PlyElement.describe(
+    new_vertex_array,
+    'vertex',
+    comments=plydata['vertex'].comments
+)
+
+# New PlyData with created PlyElement
+new_plydata = PlyData(
+    [new_vertex_el],
+    text=True
+)
+
+new_plydata.write('output_with_class_id.ply')
