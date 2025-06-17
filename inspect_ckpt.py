@@ -84,7 +84,6 @@ def main():
 
     args = parser.parse_args()
 
-    # Auto-detect device if not specified
     device = "cuda" if torch.cuda.is_available() else "cpu"
     print(f"Using device: {device}")
 
