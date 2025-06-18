@@ -9,49 +9,47 @@ Usage:
 """
 
 import argparse
-import pandas as pd
-import numpy as np
-import plotly.graph_objects as go
-import plotly.express as px
 from pathlib import Path
-import webbrowser
-import tempfile
+
+import pandas as pd
+import plotly.express as px
+import plotly.graph_objects as go
 
 
 def load_clustering_results(results_dir: str, labels: list = None):
     """
     Load clustering results from CSV files.
-    
+
     Args:
         results_dir: Directory containing the clustering results
         labels: List of labels to load (if None, loads all available CSV files)
-        
+
     Returns:
         Dictionary mapping label names to DataFrames
     """
     results_path = Path(results_dir)
-    
+
     if not results_path.exists():
         raise FileNotFoundError(f"Results directory not found: {results_dir}")
-    
+
     csv_files = list(results_path.glob("*_clusters.csv"))
-    
+
     if not csv_files:
         raise FileNotFoundError(f"No cluster CSV files found in {results_dir}")
-    
+
     data = {}
-    
+
     for csv_file in csv_files:
         # Extract label name from filename (e.g., "table_clusters.csv" -> "table")
         label = csv_file.stem.replace("_clusters", "")
-        
+
         # Skip if the label is not in the labels list
         if labels and label not in labels:
             continue
-            
+
         print(f"Loading {label} clusters from {csv_file}")
         df = pd.read_csv(csv_file)
-        
+
         if len(df) > 0:
             data[label] = df
             print(f"    Loaded {len(df)} points in {df['cluster_id'].nunique()} clusters")
@@ -63,37 +61,37 @@ def load_clustering_results(results_dir: str, labels: list = None):
 def create_cluster_plot(data: dict):
     """
     Create an interactive 3D plot of all clusters.
-    
+
     Args:
         data: Dictionary mapping label names to DataFrames with cluster data
-        
+
     Returns:
         Plotly figure object
     """
     fig = go.Figure()
-    
+
     label_color_palettes = {
-        0: px.colors.qualitative.Set1,      # Red/Blue tones
-        1: px.colors.qualitative.Set2,      # Green/Orange tones  
-        2: px.colors.qualitative.Set3,      # Purple/Yellow tones
-        3: px.colors.qualitative.Pastel1,   # Pastel tones
-        4: px.colors.qualitative.Pastel2,   # More pastel tones
-        5: px.colors.qualitative.Dark2,     # Dark tones
+        0: px.colors.qualitative.Set1,  # Red/Blue tones
+        1: px.colors.qualitative.Set2,  # Green/Orange tones
+        2: px.colors.qualitative.Set3,  # Purple/Yellow tones
+        3: px.colors.qualitative.Pastel1,  # Pastel tones
+        4: px.colors.qualitative.Pastel2,  # More pastel tones
+        5: px.colors.qualitative.Dark2,  # Dark tones
         6: px.colors.qualitative.Alphabet,  # Mixed colors
     }
-    
+
     # Fixed data ranges based on the data
     all_x, all_y, all_z = [], [], []
     for label, df in data.items():
         if len(df) > 0:
-            all_x.extend(df['x'].tolist())
-            all_y.extend(df['y'].tolist())
-            all_z.extend(df['z'].tolist())
-    
+            all_x.extend(df["x"].tolist())
+            all_y.extend(df["y"].tolist())
+            all_z.extend(df["z"].tolist())
+
     # Padding
     if all_x and all_y and all_z:
         x_range = [min(all_x) * 1.1, max(all_x) * 1.1]
-        y_range = [min(all_y) * 1.1, max(all_y) * 1.1] 
+        y_range = [min(all_y) * 1.1, max(all_y) * 1.1]
         z_range = [min(all_z) * 1.1, max(all_z) * 1.1]
     else:
         # Default ranges if no data
@@ -102,19 +100,19 @@ def create_cluster_plot(data: dict):
     for label_idx, (label, df) in enumerate(data.items()):
         if len(df) == 0:
             continue
-            
-        unique_clusters = sorted(df['cluster_id'].unique())
+
+        unique_clusters = sorted(df["cluster_id"].unique())
 
         palette_idx = label_idx % len(label_color_palettes)
         cluster_colors = label_color_palettes[palette_idx]
-        
+
         # Extend color palette if we have more clusters than colors
         if len(unique_clusters) > len(cluster_colors):
             cluster_colors = cluster_colors * (len(unique_clusters) // len(cluster_colors) + 1)
-        
+
         for cluster_idx, cluster_id in enumerate(unique_clusters):
-            cluster_data = df[df['cluster_id'] == cluster_id]
-            
+            cluster_data = df[df["cluster_id"] == cluster_id]
+
             hover_text = [
                 f"Label: {label}<br>"
                 f"Cluster: {cluster_id}<br>"
@@ -122,61 +120,40 @@ def create_cluster_plot(data: dict):
                 f"Position: ({x:.3f}, {y:.3f}, {z:.3f})<br>"
                 f"Similarity: {sim:.3f}"
                 for idx, x, y, z, sim in zip(
-                    cluster_data['gaussian_index'],
-                    cluster_data['x'],
-                    cluster_data['y'], 
-                    cluster_data['z'],
-                    cluster_data['similarity']
+                    cluster_data["gaussian_index"],
+                    cluster_data["x"],
+                    cluster_data["y"],
+                    cluster_data["z"],
+                    cluster_data["similarity"],
                 )
             ]
-            
-            fig.add_trace(go.Scatter3d(
-                x=cluster_data['x'],
-                y=cluster_data['y'],
-                z=cluster_data['z'],
-                mode='markers',
-                marker=dict(
-                    size=3,
-                    color=cluster_colors[cluster_idx % len(cluster_colors)],
-                    opacity=0.8
-                ),
-                text=hover_text,
-                hovertemplate="%{text}<extra></extra>",
-                name=f"Cluster {cluster_id} ({len(cluster_data)} pts)",
-                legendgroup=label,  # Group clusters by label
-                legendgrouptitle_text=f"{label.capitalize()}",
-                visible=True,  # Each cluster can be toggled individually
-                showlegend=True
-            ))
-    
+
+            fig.add_trace(
+                go.Scatter3d(
+                    x=cluster_data["x"],
+                    y=cluster_data["y"],
+                    z=cluster_data["z"],
+                    mode="markers",
+                    marker=dict(size=3, color=cluster_colors[cluster_idx % len(cluster_colors)], opacity=0.8),
+                    text=hover_text,
+                    hovertemplate="%{text}<extra></extra>",
+                    name=f"Cluster {cluster_id} ({len(cluster_data)} pts)",
+                    legendgroup=label,  # Group clusters by label
+                    legendgrouptitle_text=f"{label.capitalize()}",
+                    visible=True,  # Each cluster can be toggled individually
+                    showlegend=True,
+                )
+            )
+
     # Force layout to maintain fixed ranges and aspect ratio
     fig.update_layout(
-        title={
-            'text': "Feature Splatting Clustering Results",
-            'x': 0.5,
-            'xanchor': 'center',
-            'font': {'size': 20}
-        },
+        title={"text": "Feature Splatting Clustering Results", "x": 0.5, "xanchor": "center", "font": {"size": 20}},
         scene=dict(
-            xaxis=dict(
-                title="X",
-                range=x_range,
-                autorange=False
-            ),
-            yaxis=dict(
-                title="Y", 
-                range=y_range,
-                autorange=False
-            ),
-            zaxis=dict(
-                title="Z",
-                range=z_range,
-                autorange=False
-            ),
-            camera=dict(
-                eye=dict(x=1.5, y=1.5, z=1.5)
-            ),
-            aspectmode='cube'  # Keep proportional scaling
+            xaxis=dict(title="X", range=x_range, autorange=False),
+            yaxis=dict(title="Y", range=y_range, autorange=False),
+            zaxis=dict(title="Z", range=z_range, autorange=False),
+            camera=dict(eye=dict(x=1.5, y=1.5, z=1.5)),
+            aspectmode="cube",  # Keep proportional scaling
         ),
         legend=dict(
             orientation="v",
@@ -184,63 +161,61 @@ def create_cluster_plot(data: dict):
             y=1,
             xanchor="left",
             x=1.01,
-            font=dict(size=10), 
-            itemsizing="constant",  
-            tracegroupgap=5  
+            font=dict(size=10),
+            itemsizing="constant",
+            tracegroupgap=5,
         ),
         width=1400,
-        height=800
+        height=800,
     )
     return fig
 
 
 def main():
     parser = argparse.ArgumentParser(description="Plot feature clustering results")
-    parser.add_argument("--results-dir", default="clustering_results",
-                       help="Directory containing clustering results")
-    parser.add_argument("--labels", nargs="*", default=None,
-                       help="Specific labels to plot (default: all available)")
-    parser.add_argument("--output", default=None,
-                       help="Output HTML file path (default: current directory)")
-    
+    parser.add_argument("--results-dir", default="clustering_results", help="Directory containing clustering results")
+    parser.add_argument("--labels", nargs="*", default=None, help="Specific labels to plot (default: all available)")
+    parser.add_argument("--output", default=None, help="Output HTML file path (default: current directory)")
+
     args = parser.parse_args()
-    
+
     print("=== Feature Clustering Visualization ===")
     print(f"Results directory: {args.results_dir}")
-    
+
     try:
         data = load_clustering_results(args.results_dir, args.labels)
-        
+
         if not data:
             print("No clustering data found!")
             return
-        
+
         fig = create_cluster_plot(data)
-        
+
         if args.output:
             output_file = args.output
         else:
             script_dir = Path(__file__).parent
             output_file = script_dir / "feature_clusters_plot.html"
-        
+
         fig.write_html(output_file)
-                
+
         print("\n=== Plot Summary ===")
         total_points = 0
         total_clusters = 0
         for label, df in data.items():
             num_points = len(df)
-            num_clusters = df['cluster_id'].nunique()
+            num_clusters = df["cluster_id"].nunique()
             total_points += num_points
             total_clusters += num_clusters
             print(f"{label}: {num_clusters} clusters, {num_points} points")
-        
+
         print(f"\nTotal: {total_clusters} clusters, {total_points} points")
         print(f"Interactive plot saved to: {output_file}")
-        
+
     except Exception as e:
         print(f"Error: {e}")
         import traceback
+
         traceback.print_exc()
 
 
