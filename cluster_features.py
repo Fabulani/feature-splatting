@@ -9,21 +9,34 @@ USAGE:
     Basic usage:
         python cluster_features.py data/checkpoint.ckpt --labels table flower vase
 
+    Using labels from a file:
+        python cluster_features.py data/checkpoint.ckpt --labels-file labels.txt
+
+    Combining both command-line and file labels:
+        python cluster_features.py data/checkpoint.ckpt --labels table chair --labels-file more_labels.txt
+
     Advanced usage with custom parameters:
         python cluster_features.py data/checkpoint.ckpt \
             --labels table flower vase floor grass \
+            --labels-file labels.txt \
             --similarity-threshold 0.25 \
             --dbscan-eps 0.2 \
             --dbscan-min-samples 100 \
             --softmax-temp 2.0 \
             --batch-size 25000 \
             --output-dir my_results
+
+    Example labels.txt file format:
+        table
+        chair
+        vase
+        flower
+        flowervase on top of the table
 """
 
 import argparse
 import json
 from pathlib import Path
-from typing import Dict, List, Optional
 
 import numpy as np
 import pandas as pd
@@ -171,7 +184,7 @@ class FeatureClusterer:
         self.text_encoder = clip_text_encoder(clip_model_name, device=self.device)
         print(f"Text encoder initialized successfully: CLIP {clip_model_name}")
 
-    def encode_text_labels(self, labels: List[str]) -> torch.Tensor:
+    def encode_text_labels(self, labels: list[str]) -> torch.Tensor:
         """
         Encode text labels into embedding vectors.
 
@@ -194,7 +207,7 @@ class FeatureClusterer:
         return text_embeddings
 
     def compute_gaussian_similarities(
-        self, text_embeddings: torch.Tensor, batch_size: Optional[int] = None, softmax_temp: float = 1.0
+        self, text_embeddings: torch.Tensor, batch_size: int | None = None, softmax_temp: float = 1.0
     ) -> torch.Tensor:
         """
         Compute similarity scores between ALL Gaussians and text embeddings using batch processing.
@@ -251,11 +264,11 @@ class FeatureClusterer:
     def cluster_by_label(
         self,
         similarities: torch.Tensor,
-        labels: List[str],
+        labels: list[str],
         similarity_threshold: float = 0.5,
         dbscan_eps: float = 0.1,
         dbscan_min_samples: int = 20,
-    ) -> Dict[str, Dict]:
+    ) -> dict[str, dict]:
         """
         Cluster Gaussians for each text label using DBSCAN.
 
@@ -369,7 +382,7 @@ class FeatureClusterer:
             }
         return results
 
-    def save_results(self, results: Dict, labels: List[str], output_dir: str = "clustering_results"):
+    def save_results(self, results: dict, labels: list[str], output_dir: str = "clustering_results"):
         """
         Save clustering results to files.
 
@@ -449,7 +462,12 @@ def main():
     parser = argparse.ArgumentParser(description="Cluster feature splatting Gaussians by text labels")
     parser.add_argument("checkpoint", help="Path to feature splatting checkpoint (.ckpt)")
     parser.add_argument(
-        "--labels", nargs="+", required=True, help="Text labels for clustering (e.g., --labels table chair vase)"
+        "--labels", nargs="*", default=[], help="Text labels for clustering (e.g., --labels table chair vase)"
+    )
+    parser.add_argument(
+        "--labels-file",
+        type=str,
+        help="Path to text file containing labels (one per line). Labels will be combined with --labels argument.",
     )
     parser.add_argument("--output-dir", default="clustering_results", help="Output directory for results")
     parser.add_argument(
@@ -472,9 +490,36 @@ def main():
 
     args = parser.parse_args()
 
+    # Combine labels from --labels argument and --labels-file
+    all_labels = list(args.labels) if args.labels else []
+
+    if args.labels_file:
+        try:
+            labels_file_path = Path(args.labels_file)
+            with open(labels_file_path, "r", encoding="utf-8") as f:
+                file_labels = [line.strip() for line in f if line.strip()]
+            all_labels.extend(file_labels)
+            print(f"Loaded {len(file_labels)} labels from {labels_file_path}")
+        except FileNotFoundError:
+            print(f"Error: Labels file not found: {args.labels_file}")
+            return
+        except Exception as e:
+            print(f"Error reading labels file: {e}")
+            return
+
+    # Check if there's at least one label
+    if not all_labels:
+        print("Error: No labels provided. Use --labels or --labels-file to specify labels.")
+        return
+
+    # Remove duplicates
+    unique_labels = list(set(all_labels))
+
+    print(f"Total unique labels to process: {len(unique_labels)}")
+
     print("=== Feature Splatting Clustering ===")
     print(f"Checkpoint: {args.checkpoint}")
-    print(f"Labels: {args.labels}")
+    print(f"Labels: {unique_labels}")
     print(f"Output directory: {args.output_dir}")
     print(f"Similarity threshold: {args.similarity_threshold}")
     print(f"Temperature: {args.softmax_temp}")
@@ -482,7 +527,7 @@ def main():
 
     try:
         clusterer = FeatureClusterer(args.checkpoint)
-        text_embeddings = clusterer.encode_text_labels(args.labels)
+        text_embeddings = clusterer.encode_text_labels(unique_labels)
 
         similarities = clusterer.compute_gaussian_similarities(
             text_embeddings, batch_size=args.batch_size, softmax_temp=args.softmax_temp
@@ -490,16 +535,16 @@ def main():
 
         results = clusterer.cluster_by_label(
             similarities,
-            args.labels,
+            unique_labels,
             similarity_threshold=args.similarity_threshold,
             dbscan_eps=args.dbscan_eps,
             dbscan_min_samples=args.dbscan_min_samples,
         )
 
-        clusterer.save_results(results, args.labels, args.output_dir)
+        clusterer.save_results(results, unique_labels, args.output_dir)
 
         print("\n=== Clustering Complete ===")
-        for label in args.labels:
+        for label in unique_labels:
             if label in results:
                 result = results[label]
                 if "num_clusters" in result:

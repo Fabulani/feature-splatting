@@ -58,13 +58,17 @@ python cluster_features.py <checkpoint> --labels <label1> <label2> ... [options]
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
-| `--labels` | Required | Text labels to cluster by |
+| `--labels` | `[]` | Text labels to cluster by |
+| `--labels-file` | Required | Path to labels txt file |
 | `--output-dir` | `clustering_results` | Output directory |
 | `--similarity-threshold` | `0.5` | Minimum similarity score (0.0-1.0) |
 | `--dbscan-eps` | `0.1` | DBSCAN neighborhood radius |
 | `--dbscan-min-samples` | `100` | Minimum points per cluster |
 | `--batch-size` | `None` | GPU batch size (use if memory limited) |
 | `--softmax-temp` | `0.5` | Similarity temperature (higher=softer) |
+
+> [!NOTE]
+> Labels from `--labels` and `--labels-file` are combined for clustering, but only unique labels are used.
 
 ### Example
 
@@ -73,6 +77,7 @@ Advanced usage example:
 ```bash
 python cluster_features.py data/step-000006999.ckpt \
     --labels table vase floor \
+    --labels-file labels.txt \
     --output-dir garden_clustering \
     --similarity-threshold 0.2 \
     --dbscan-eps 0.2 \
