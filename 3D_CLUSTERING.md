@@ -2,6 +2,24 @@
 
 Cluster 3D Gaussians from feature splatting checkpoints by semantic text labels using CLIP similarity and DBSCAN spatial clustering.
 
+- [3D Feature Clustering](#3d-feature-clustering)
+  - [Overview](#overview)
+  - [Quick Start](#quick-start)
+  - [cluster\_features.py](#cluster_featurespy)
+    - [Basic Usage](#basic-usage)
+    - [Parameters](#parameters)
+    - [Example](#example)
+    - [Parameter Tuning](#parameter-tuning)
+    - [Outputs](#outputs)
+  - [plot\_feature\_clusters.py](#plot_feature_clusterspy)
+    - [Basic Usage](#basic-usage-1)
+    - [Parameters](#parameters-1)
+    - [Examples](#examples)
+  - [Understanding Results](#understanding-results)
+    - [Similarity Statistics](#similarity-statistics)
+    - [Clustering Output](#clustering-output)
+  - [Interactive Visualization](#interactive-visualization)
+
 ## Overview
 
 Two scripts are available:
@@ -9,10 +27,8 @@ Two scripts are available:
 - **`cluster_features.py`**: main clustering script that takes feature splatting checkpoints and outputs cluster data
 - **`plot_feature_clusters.py`**: interactive 3D visualization of clustering results
 
-
 > [!IMPORTANT]
 > A NVIDIA GPU with CUDA support is required.
-
 
 ## Quick Start
 
@@ -38,8 +54,7 @@ Run `python cluster_feature.py --help` for a quick summary of all parameters.
 python cluster_features.py <checkpoint> --labels <label1> <label2> ... [options]
 ```
 
-### Key Parameters
-
+### Parameters
 
 | Parameter | Default | Description |
 |-----------|---------|-------------|
@@ -69,19 +84,22 @@ python cluster_features.py data/step-000006999.ckpt \
 ### Parameter Tuning
 
 **Too many small clusters?**
+
 - Increase `--dbscan-eps` (e.g., 0.1 → 0.2). This makes DBSCAN consider points further apart as neighbors, creating larger clusters, but also potentially including more noise.
 - Increase `--dbscan-min-samples` (e.g., 50 → 100). With this,  more points are required to form a core point, potentially eliminating small clusters.
 
 **Not enough candidates found?**
+
 - Lower `--similarity-threshold` (e.g., 0.5 → 0.3). This will allow Gaussians with a lower similarity score to be considered as candidates. May increase false positives.
 - Increase `--softmax-temp` (e.g., 1.0 → 2.0). This makes similarity scores more evenly distributed (softer). If your threshold is below the mean, this can increase candidates. If above the mean, it may decrease candidates.
 - Overall, it is wise to adjust both of these parameters together to achieve the desired outcome:
-    - Lower threshold with higher temperature for broader, less precise matching
-    - Higher threshold with lower temperature for selective, precise matching
-    - Start with threshold adjustments first, then fine-tune with temperature
+  - Lower threshold with higher temperature for broader, less precise matching
+  - Higher threshold with lower temperature for selective, precise matching
+  - Start with threshold adjustments first, then fine-tune with temperature
 - These adjustments also depend on the training data and the quality of the model, as they are based on distilled knowledge. I.e., if an object does not appear in many training images, it's similarity score to a relevant label might be lower than desired.
 
 **Limited GPU memory?**
+
 - Decrease `--batch-size`. Every 50k gaussians occupy approximatelly 1GB of GPU memory. As such, for a 6GB GPU, use `--batch-size 250000` or lower. Using smaller batch sizes does not affect the quality of the results, as it is used only in similarity computations.
 
 ### Outputs
@@ -93,6 +111,7 @@ python cluster_features.py data/step-000006999.ckpt \
 ## plot_feature_clusters.py
 
 ### Basic Usage
+
 ```bash
 python plot_feature_clusters.py [options]
 ```
@@ -124,7 +143,7 @@ python plot_feature_clusters.py --results-dir garden_clustering --output my_plot
 
 Console output shows statistics per label:
 
-```
+```txt
 Similarity statistics for 'table':
   Highest: 0.3162    # Best matching Gaussian
   Median:  0.2045    # 50th percentile similarity
@@ -140,7 +159,7 @@ Similarity statistics for 'table':
 
 ### Clustering Output
 
-```
+```txt
 table: 3 clusters from 1250 candidates
 vase: 1 clusters from 890 candidates  
 floor: No clustering performed - 45 candidates (minimum required: 100)
