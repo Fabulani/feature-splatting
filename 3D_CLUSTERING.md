@@ -28,7 +28,7 @@ Two scripts are available:
 - **`plot_feature_clusters.py`**: interactive 3D visualization of clustering results
 
 > [!IMPORTANT]
-> A NVIDIA GPU with CUDA support is required.
+> An NVIDIA GPU with CUDA support is required.
 
 ## Quick Start
 
