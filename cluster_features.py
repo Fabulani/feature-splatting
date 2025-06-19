@@ -384,7 +384,13 @@ class FeatureClusterer:
             }
         return results
 
-    def save_results(self, results: dict, labels: list[str], output_dir: str = "clustering_results"):
+    def save_results(
+        self,
+        results: dict,
+        labels: list[str],
+        output_dir: str = "clustering_results",
+        clustering_metadata: dict | None = None,
+    ):
         """
         Save clustering results to files.
 
@@ -392,6 +398,7 @@ class FeatureClusterer:
             results: Clustering results dictionary
             labels: List of text labels
             output_dir: Directory to save results
+            clustering_metadata: Clustering parameters to save as metadata
         """
         output_path = Path(output_dir)
         output_path.mkdir(exist_ok=True)
@@ -408,6 +415,10 @@ class FeatureClusterer:
                 elif isinstance(obj, np.ndarray):
                     return obj.tolist()
                 return super().default(obj)
+
+        # Add clustering parameters as metadata
+        if clustering_metadata:
+            results["_metadata"] = clustering_metadata
 
         with open(output_path / "clustering_results.json", "w") as f:
             json.dump(results, f, indent=2, cls=NumpyEncoder)
@@ -499,7 +510,7 @@ def main():
         try:
             labels_file_path = Path(args.labels_file)
             with open(labels_file_path, "r", encoding="utf-8") as f:
-                file_labels = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+                file_labels = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
             all_labels.extend(file_labels)
             print(f"Loaded {len(file_labels)} labels from {labels_file_path}")
         except FileNotFoundError:
@@ -543,7 +554,20 @@ def main():
             dbscan_min_samples=args.dbscan_min_samples,
         )
 
-        clusterer.save_results(results, unique_labels, args.output_dir)
+        # Prepare clustering parameters for metadata
+        clustering_metadata = {
+            "checkpoint": args.checkpoint,
+            "labels": unique_labels,
+            "labels_file": args.labels_file,
+            "output_dir": args.output_dir,
+            "similarity_threshold": args.similarity_threshold,
+            "dbscan_eps": args.dbscan_eps,
+            "dbscan_min_samples": args.dbscan_min_samples,
+            "batch_size": args.batch_size,
+            "softmax_temp": args.softmax_temp,
+        }
+
+        clusterer.save_results(results, unique_labels, args.output_dir, clustering_metadata)
 
         print("\n=== Clustering Complete ===")
         for label in unique_labels:
