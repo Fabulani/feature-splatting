@@ -68,7 +68,7 @@ python cluster_features.py <checkpoint> --labels <label1> <label2> ... [options]
 | `--softmax-temp` | `0.5` | Similarity temperature (higher=softer) |
 
 > [!NOTE]
-> Labels from `--labels` and `--labels-file` are combined for clustering, but only unique labels are used.
+> Labels from `--labels` and `--labels-file` are combined for clustering, but only unique labels are used. Lines starting with `#` are ignored as comments.
 
 ### Example
 
