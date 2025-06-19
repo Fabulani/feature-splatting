@@ -27,9 +27,11 @@ USAGE:
             --output-dir my_results
 
     Example labels.txt file format:
+        # This is a comment line (ignored)
         table
         chair
         vase
+        # Another comment
         flower
         flowervase on top of the table
 """
@@ -467,7 +469,7 @@ def main():
     parser.add_argument(
         "--labels-file",
         type=str,
-        help="Path to text file containing labels (one per line). Labels will be combined with --labels argument.",
+        help="Path to text file containing labels (one per line). Lines starting with # are ignored as comments. Labels will be combined with --labels argument.",
     )
     parser.add_argument("--output-dir", default="clustering_results", help="Output directory for results")
     parser.add_argument(
@@ -497,7 +499,7 @@ def main():
         try:
             labels_file_path = Path(args.labels_file)
             with open(labels_file_path, "r", encoding="utf-8") as f:
-                file_labels = [line.strip() for line in f if line.strip()]
+                file_labels = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
             all_labels.extend(file_labels)
             print(f"Loaded {len(file_labels)} labels from {labels_file_path}")
         except FileNotFoundError:
