@@ -554,7 +554,6 @@ def main():
             dbscan_min_samples=args.dbscan_min_samples,
         )
 
-        # Prepare clustering parameters for metadata
         clustering_metadata = {
             "checkpoint": args.checkpoint,
             "labels": unique_labels,
