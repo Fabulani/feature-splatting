@@ -6,16 +6,16 @@ feature splatting model checkpoint based on their semantic similarity to text la
 
 USAGE:
     Basic usage:
-        python cluster_features_refactored.py data/checkpoint.ckpt --labels table flower vase
+        python cluster_features.py data/checkpoint.ckpt --labels table flower vase
 
     Using labels from a file:
-        python cluster_features_refactored.py data/checkpoint.ckpt --labels-file labels.txt
+        python cluster_features.py data/checkpoint.ckpt --labels-file labels.txt
 
     Combining both command-line and file labels:
-        python cluster_features_refactored.py data/checkpoint.ckpt --labels table chair --labels-file more_labels.txt
+        python cluster_features.py data/checkpoint.ckpt --labels table chair --labels-file more_labels.txt
 
     Advanced usage with custom parameters:
-        python cluster_features_refactored.py data/checkpoint.ckpt \
+        python cluster_features.py data/checkpoint.ckpt \
             --labels table flower vase floor grass \
             --labels-file labels.txt \
             --similarity-threshold 0.25 \
