@@ -33,26 +33,26 @@ class NumpyEncoder(json.JSONEncoder):
 def read_labels_file(labels_file_path: str) -> list[str]:
     """
     Read labels from a text file.
-    
+
     Args:
         labels_file_path: Path to the labels file
-        
+
     Returns:
         List of labels read from the file
-        
+
     Raises:
         FileNotFoundError: If the file doesn't exist
         IOError: If there's an error reading the file
     """
     labels_path = Path(labels_file_path)
-    
+
     if not labels_path.exists():
         raise FileNotFoundError(f"Labels file not found: {labels_file_path}")
-    
+
     try:
         with open(labels_path, "r", encoding="utf-8") as f:
             # Filter out empty lines and comments (starting with '#')
-            labels = [line.strip() for line in f if line.strip() and not line.strip().startswith('#')]
+            labels = [line.strip() for line in f if line.strip() and not line.strip().startswith("#")]
         return labels
     except Exception as e:
         raise IOError(f"Error reading labels file: {e}") from e
@@ -65,7 +65,7 @@ def save_clustering_results(
 ) -> None:
     """
     Save clustering results to a JSON file.
-    
+
     Args:
         results: Clustering results dictionary
         output_dir: Directory to save results
@@ -73,11 +73,11 @@ def save_clustering_results(
     """
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
-    
+
     # Add clustering parameters as metadata
     if clustering_metadata:
         results["_metadata"] = clustering_metadata
-    
+
     with open(output_path / "clustering_results.json", "w") as f:
         json.dump(results, f, indent=2, cls=NumpyEncoder)
 
@@ -89,7 +89,7 @@ def save_clustering_summary(
 ) -> None:
     """
     Save clustering summary statistics to a JSON file.
-    
+
     Args:
         results: Clustering results dictionary
         labels: List of text labels
@@ -97,7 +97,7 @@ def save_clustering_summary(
     """
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
-    
+
     summary = {}
     for label in labels:
         if label in results:
@@ -108,7 +108,7 @@ def save_clustering_summary(
                 "num_noise_points": result.get("num_noise_points", 0),
                 "largest_cluster_size": result["clusters"][0]["size"] if result.get("clusters") else 0,
             }
-    
+
     with open(output_path / "summary.json", "w") as f:
         json.dump(summary, f, indent=2, cls=NumpyEncoder)
 
@@ -120,7 +120,7 @@ def save_cluster_csvs(
 ) -> None:
     """
     Save individual cluster data as CSV files for each label.
-    
+
     Args:
         results: Clustering results dictionary
         labels: List of text labels
@@ -128,7 +128,7 @@ def save_cluster_csvs(
     """
     output_path = Path(output_dir)
     output_path.mkdir(exist_ok=True)
-    
+
     for label in labels:
         if label in results and results[label]["clusters"]:
             cluster_data = []
@@ -147,7 +147,7 @@ def save_cluster_csvs(
                             "similarity": sim,
                         }
                     )
-            
+
             df = pd.DataFrame(cluster_data)
             output_file = output_path / f"{label} - clusters.csv"
             df.to_csv(output_file, index=False)
@@ -161,7 +161,7 @@ def save_all_results(
 ) -> None:
     """
     Save all clustering results (JSON, summary, and CSV files).
-    
+
     Args:
         results: Clustering results dictionary
         labels: List of text labels
@@ -170,12 +170,12 @@ def save_all_results(
     """
     output_path = Path(output_dir)
     print(f"\nSaving results to {output_path}/")
-    
+
     save_clustering_results(results, output_dir, clustering_metadata)
     print("  Saved clustering_results.json")
-    
+
     save_clustering_summary(results, labels, output_dir)
     print("  Saved summary.json")
-    
+
     save_cluster_csvs(results, labels, output_dir)
     print("  Saved cluster CSVs")

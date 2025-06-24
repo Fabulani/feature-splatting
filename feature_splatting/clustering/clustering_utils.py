@@ -16,10 +16,10 @@ class SpatialClusterer:
     def analyze_similarity_statistics(self, similarities: np.ndarray) -> dict:
         """
         Analyze similarity statistics for a label.
-        
+
         Args:
             similarities: Array of similarity scores
-            
+
         Returns:
             Dictionary with similarity statistics
         """
@@ -28,21 +28,17 @@ class SpatialClusterer:
             "median": float(np.median(similarities)),
             "mean": float(np.mean(similarities)),
             "min": float(np.min(similarities)),
-            "std_dev": float(np.std(similarities))
+            "std_dev": float(np.std(similarities)),
         }
 
-    def filter_by_similarity(
-        self,
-        similarities: np.ndarray,
-        threshold: float
-    ) -> tuple[np.ndarray, int]:
+    def filter_by_similarity(self, similarities: np.ndarray, threshold: float) -> tuple[np.ndarray, int]:
         """
         Filter similarities by threshold.
-        
+
         Args:
             similarities: Array of similarity scores
             threshold: Minimum similarity threshold
-            
+
         Returns:
             Tuple of (mask, num_candidates)
         """
@@ -50,53 +46,44 @@ class SpatialClusterer:
         num_candidates = mask.sum()
         return mask, num_candidates
 
-    def apply_dbscan_clustering(
-        self,
-        positions: np.ndarray,
-        eps: float = 0.1,
-        min_samples: int = 100
-    ) -> np.ndarray:
+    def apply_dbscan_clustering(self, positions: np.ndarray, eps: float = 0.1, min_samples: int = 100) -> np.ndarray:
         """
         Apply DBSCAN clustering to positions.
-        
+
         Args:
             positions: Array of 3D positions [num_points, 3]
             eps: DBSCAN epsilon parameter (neighborhood radius)
             min_samples: DBSCAN minimum samples parameter
-            
+
         Returns:
             Cluster labels array (noise points labeled as -1)
         """
         if len(positions) < min_samples:
             # Not enough points for clustering
             return np.full(len(positions), -1)
-        
+
         dbscan = DBSCAN(eps=eps, min_samples=min_samples)
         cluster_labels = dbscan.fit_predict(positions)
         return cluster_labels
 
     def organize_cluster_data(
-        self,
-        cluster_labels: np.ndarray,
-        positions: np.ndarray,
-        indices: np.ndarray,
-        similarities: np.ndarray
+        self, cluster_labels: np.ndarray, positions: np.ndarray, indices: np.ndarray, similarities: np.ndarray
     ) -> list[dict]:
         """
         Organize clustering data into structured format.
-        
+
         Args:
             cluster_labels: Array of cluster labels from DBSCAN
             positions: Array of 3D positions
             indices: Array of Gaussian indices
             similarities: Array of similarity scores
-            
+
         Returns:
             List of cluster dictionaries
         """
         clusters = []
         unique_clusters = np.unique(cluster_labels[cluster_labels != -1])
-        
+
         for cluster_id in unique_clusters:
             cluster_mask = cluster_labels == cluster_id
             cluster_positions = positions[cluster_mask]
@@ -117,7 +104,7 @@ class SpatialClusterer:
             }
 
             clusters.append(cluster_data)
-        
+
         # Sort clusters by size (largest first)
         clusters.sort(key=lambda x: x["size"], reverse=True)
         return clusters
@@ -158,7 +145,7 @@ class SpatialClusterer:
 
             # Analyze similarity statistics
             sim_stats = self.analyze_similarity_statistics(label_similarities)
-            
+
             print(f"  Similarity statistics for '{label}':")
             print(f"    Highest: {sim_stats['max']:.4f}")
             print(f"    Median:  {sim_stats['median']:.4f}")
@@ -167,19 +154,13 @@ class SpatialClusterer:
             print(f"    Std Dev: {sim_stats['std_dev']:.4f}")
 
             # Filter by similarity threshold
-            high_similarity_mask, num_candidates = self.filter_by_similarity(
-                label_similarities, similarity_threshold
-            )
+            high_similarity_mask, num_candidates = self.filter_by_similarity(label_similarities, similarity_threshold)
 
             print(f"  Found {num_candidates} Gaussians above threshold {similarity_threshold}")
 
             if num_candidates < dbscan_min_samples:
                 print(f"  !  Not enough candidates for clustering (minimum: {dbscan_min_samples})")
-                results[label] = {
-                    'num_candidates': num_candidates,
-                    'clusters': [],
-                    'similarity_statistics': sim_stats
-                }
+                results[label] = {"num_candidates": num_candidates, "clusters": [], "similarity_statistics": sim_stats}
                 continue
 
             # Get positions of high-similarity Gaussians
@@ -188,13 +169,9 @@ class SpatialClusterer:
             candidate_similarities = label_similarities[high_similarity_mask]
 
             # Apply DBSCAN clustering
-            cluster_labels = self.apply_dbscan_clustering(
-                candidate_positions, dbscan_eps, dbscan_min_samples
-            )
+            cluster_labels = self.apply_dbscan_clustering(candidate_positions, dbscan_eps, dbscan_min_samples)
 
-            unique_clusters, cluster_counts = np.unique(
-                cluster_labels[cluster_labels != -1], return_counts=True
-            )
+            unique_clusters, cluster_counts = np.unique(cluster_labels[cluster_labels != -1], return_counts=True)
             num_clusters = len(unique_clusters)
             num_noise = (cluster_labels == -1).sum()
 
@@ -212,5 +189,5 @@ class SpatialClusterer:
                 "clusters": clusters,
                 "similarity_statistics": sim_stats,
             }
-        
+
         return results

@@ -100,7 +100,6 @@ def main():
     # Remove duplicates
     unique_labels = list(set(all_labels))
 
-
     try:
         pipeline = ClusteringPipeline(args.checkpoint)
         results = pipeline.run(

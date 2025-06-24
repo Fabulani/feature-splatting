@@ -5,17 +5,19 @@ This module handles PyTorch-specific operations including checkpoint loading,
 model initialization, text encoding, and Gaussian feature processing.
 """
 
-import torch
 from pathlib import Path
+
+import torch
 from feature_splatting.model import FeatureSplattingModel, FeatureSplattingModelConfig
 from feature_splatting.utils.clip_text_encoder import clip_text_encoder
-from nerfstudio.data.scene_box import SceneBox
 from tqdm import tqdm
+
+from nerfstudio.data.scene_box import SceneBox
 
 
 class ModelLoader:
     """Handles loading and initializing the feature splatting model from checkpoints."""
-    
+
     # Config values hardcoded from the standard feature splatting model
     DEFAULT_FEAT_LATENT_DIM = 13
     DEFAULT_MLP_HIDDEN_DIM = 64
@@ -134,7 +136,6 @@ class TextEncoder:
 
         print(f"Text encoder initialized successfully: CLIP {self.clip_model_name}")
 
-
     def encode_text_labels(self, labels: list[str]) -> torch.Tensor:
         """
         Encode text labels into embedding vectors.
@@ -224,10 +225,10 @@ def compute_gaussian_similarities(
 def get_gaussian_positions(model: FeatureSplattingModel) -> torch.Tensor:
     """
     Get the 3D positions of all Gaussians.
-    
+
     Args:
         model: The loaded feature splatting model
-        
+
     Returns:
         Tensor of shape [num_gaussians, 3] containing Gaussian positions
     """
