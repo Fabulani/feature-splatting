@@ -99,8 +99,6 @@ class ModelLoader:
             **{"metadata": metadata, "device": self.device},
         )
 
-        self.model.text_encoding_func = self.text_encoder.get_text_token
-
         # The checkpoint saves model parameters with "_model." prefix, but load_state_dict expects them without it
         cleaned_state_dict = {}
         for key, value in model_state.items():
