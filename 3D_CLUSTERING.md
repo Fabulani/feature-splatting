@@ -22,9 +22,18 @@ Cluster 3D Gaussians from feature splatting checkpoints by semantic text labels 
 
 ## Overview
 
-Two scripts are available:
+The clustering functionality is built as a feature splatting module with the following components:
 
-- **`cluster_features.py`**: main clustering script that takes feature splatting checkpoints and outputs cluster data
+- **CLI Interface** (`cluster_features.py`): command-line argument parsing and user interaction
+- **Clustering Pipeline** (`feature_splatting.clustering.pipeline`): main orchestration of the clustering workflow
+- **Utility Modules** (`feature_splatting.clustering.*`):
+  - `pytorch_utils.py`: model loading, text encoding, and PyTorch operations
+  - `clustering_utils.py`: spatial clustering algorithms (DBSCAN) and similarity analysis
+  - `io_utils.py`: file I/O operations for reading labels and saving results
+
+Mainly, two scripts are used to interact with the clustering functionality:
+
+- **`cluster_features.py`**: the CLI interface. Takes feature splatting checkpoints and outputs cluster data
 - **`plot_feature_clusters.py`**: interactive 3D visualization of clustering results
 
 > [!IMPORTANT]
@@ -46,7 +55,7 @@ Check the terminal for detailed information about the clustering process. To vis
 
 ## cluster_features.py
 
-Run `python cluster_feature.py --help` for a quick summary of all parameters.
+Run `python cluster_features.py --help` for a quick summary of all parameters.
 
 ### Basic Usage
 
