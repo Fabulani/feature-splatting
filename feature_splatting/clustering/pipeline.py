@@ -81,7 +81,7 @@ class ClusteringPipeline:
         text_embeddings = self.text_encoder.encode_text_labels(labels)
 
         # Step 2: Compute similarities
-        print("2. Computing Gaussian similarities...")
+        print("\n2. Computing Gaussian similarities...")
         similarities = compute_gaussian_similarities(
             model=self.model_loader.model,
             text_embeddings=text_embeddings,
@@ -91,7 +91,7 @@ class ClusteringPipeline:
         )
 
         # Step 3: Perform clustering
-        print("3. Performing spatial clustering...")
+        print("\n3. Performing spatial clustering...")
         gaussian_positions = get_gaussian_positions(self.model_loader.model).numpy()
         results = self.clusterer.cluster_by_label(
             similarities=similarities,
@@ -103,7 +103,7 @@ class ClusteringPipeline:
         )
 
         # Step 4: Save results
-        print("4. Saving results...")
+        print("\n4. Saving results...")
         clustering_metadata = {
             "checkpoint": checkpoint_path,
             "labels": labels,
