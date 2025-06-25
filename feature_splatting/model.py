@@ -162,6 +162,11 @@ class FeatureSplattingModel(SplatfactoModel):
                 "Physics Simulation Step", disabled=True, visible=False, cb_hook=lambda _: self.physics_sim_step()
             )
 
+            # @fabulani: Feature clustering
+            self.extract_clusters_btn = ViewerButton(
+                "Extract clusters", cb_hook=lambda _: self.extract_clusters(), disabled=False, visible=True
+            )
+
     def physics_sim_step(self):
         # It's just a placeholder now. NS needs some user interaction to send rendering requests.
         # So I make a button that does nothing but to trigger rendering.
@@ -180,6 +185,8 @@ class FeatureSplattingModel(SplatfactoModel):
     def start_editing(self):
         self.estimate_ground_btn.set_disabled(False)
         self.estimate_ground_btn.set_visible(True)
+
+
 
     def segment_positive_obj(self):
         selected_obj_idx, sample_idx = self.segment_gaussian("positive", use_canonical=False)
@@ -574,3 +581,75 @@ class FeatureSplattingModel(SplatfactoModel):
 
         self.camera_optimizer.get_metrics_dict(metrics_dict)
         return metrics_dict
+
+    def extract_clusters(self, field_name: str = 'positive', threshold: float = 0.5):
+        """
+        Extract clusters programmatically from the feature field.
+
+        Args:
+            field_name (str): The name of the field to segment (default: 'positive').
+            threshold (float): The similarity threshold for segmentation (default: 0.5).
+
+        Returns:
+            dict: A dictionary containing:
+                - 'clustered_points': The clustered points in 3D space.
+                - 'indices': The indices of the points that belong to the cluster.
+                - 'bounding_box': A tuple containing the min and max bounds of the cluster.
+        """
+        # Segment the Gaussian features
+        print("Segmenting...")
+        selected_obj_idx, sample_idx = self.segment_gaussian(field_name, use_canonical=False, threshold=threshold)
+
+        # Get all 3D coordinates
+        print("Getting all 3D coordinates...")
+        all_xyz = self.means.detach().cpu().numpy()
+        selected_xyz = all_xyz[sample_idx]
+
+        # Cluster the selected features
+        print("Clustering...")
+        selected_obj_idx = cluster_instance(selected_xyz, selected_obj_idx)
+
+        # Get the boolean flag of selected particles
+        print("Getting boolean flag of selected particles...")
+        subset_idx = np.zeros(self.means.shape[0], dtype=bool)
+        subset_idx[sample_idx[selected_obj_idx]] = True
+
+        # Calculate the bounding box for the cluster
+        print("Calculating bounding box...")
+        ground_min, ground_max = get_ground_bbox_min_max(all_xyz, subset_idx, self.ground_R, self.ground_T)
+
+        print("Saving clustered information to a text file...")
+        import pandas as pd
+
+        print("Saving clustered information to a DataFrame...")
+        df_points = pd.DataFrame(
+            selected_xyz[selected_obj_idx],
+            columns=["x", "y", "z"]
+        )
+        df_points["index"] = sample_idx[selected_obj_idx].tolist()
+        df_points.to_csv("clusters_info.csv", index=False)
+
+        print("Saving bounding box information to a JSON file...")
+        ground_min = np.array(ground_min)
+        ground_max = np.array(ground_max)
+        bbox_data = {
+            "bbox_min_x": ground_min[0],
+            "bbox_min_y": ground_min[1],
+            "bbox_min_z": ground_min[2],
+            "bbox_max_x": ground_max[0],
+            "bbox_max_y": ground_max[1],
+            "bbox_max_z": ground_max[2],
+        }
+
+        with open("clusters_bbox.json", "w") as f:
+            import json
+            json.dump(bbox_data, f, indent=4)
+
+        print("Done!")
+
+        return {
+            'clustered_points': selected_xyz[selected_obj_idx],
+            'indices': sample_idx[selected_obj_idx],
+            'bounding_box': (ground_min, ground_max)
+        }
+

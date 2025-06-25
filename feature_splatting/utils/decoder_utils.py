@@ -59,6 +59,7 @@ def compute_similarity(prob_mn, softmax_temp, num_pos, heatmap_method="standard_
         probs = (paired_sims / softmax_temp).softmax(dim=0)[:1, ...]
         torch.nan_to_num_(probs, nan=0.0)
         sims, _ = probs.min(dim=0)
+        print("similarities paired", sims)
         return sims
     else:
         raise ValueError(f"Unknown heatmap method: {heatmap_method}")
